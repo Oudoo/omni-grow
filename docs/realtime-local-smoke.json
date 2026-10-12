@@ -1,0 +1,39 @@
+{
+  "at": "2026-10-11T16:50:38.125Z",
+  "connections": 21,
+  "authenticated_app_streams": 1,
+  "active_messages": "one conversation, sequential HTTP operations with other contacts idle",
+  "latency": {
+    "incoming_message": {
+      "samples": 5,
+      "p50_ms": 52.32,
+      "p95_ms": 157.17,
+      "max_ms": 157.17
+    },
+    "outgoing_message": {
+      "samples": 5,
+      "p50_ms": 110.95,
+      "p95_ms": 153.79,
+      "max_ms": 153.79
+    },
+    "customer_typing": {
+      "samples": 5,
+      "p50_ms": 65.43,
+      "p95_ms": 191.79,
+      "max_ms": 191.79
+    },
+    "agent_typing": {
+      "samples": 5,
+      "p50_ms": 87.36,
+      "p95_ms": 139.46,
+      "max_ms": 139.46
+    },
+    "agent_presence": {
+      "samples": 5,
+      "p50_ms": 8.41,
+      "p95_ms": 9.41,
+      "max_ms": 9.41
+    }
+  },
+  "under_100ms_for_all_samples": false
+}

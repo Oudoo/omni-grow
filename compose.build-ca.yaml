@@ -1,0 +1,8 @@
+# Optional overlay for a trusted platform/network CA during npm installation.
+services:
+  app:
+    build:
+      secrets: [network_ca]
+secrets:
+  network_ca:
+    file: ${OG_NETWORK_CA:?Set OG_NETWORK_CA to the trusted CA bundle path}

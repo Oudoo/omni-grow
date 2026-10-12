@@ -1,0 +1,38 @@
+# Run together with compose.yaml using --env-file .local/production.env.
+services:
+  rails:
+    env_file: .local/engine.production.env
+  worker:
+    env_file: .local/engine.production.env
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_ENGINE_URL: https://${OG_MESSAGING_HOST:?Set OG_MESSAGING_HOST}
+        NEXT_PUBLIC_FB_APP_ID: ${FB_APP_ID:-}
+        NEXT_PUBLIC_FB_API_VERSION: ${FB_API_VERSION:-v23.0}
+    env_file: .local/app.production.env
+    environment:
+      APP_URL: https://${OG_APP_HOST:?Set OG_APP_HOST}
+      ENGINE_URL: http://rails:3000
+      NEXT_PUBLIC_ENGINE_URL: https://${OG_MESSAGING_HOST:?Set OG_MESSAGING_HOST}
+      NEXT_PUBLIC_FB_APP_ID: ${FB_APP_ID:-}
+    expose: ['3000']
+    depends_on:
+      rails: { condition: service_healthy }
+    restart: unless-stopped
+  proxy:
+    image: caddy@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    ports: ['80:80', '443:443', '443:443/udp']
+    environment:
+      OG_APP_HOST: ${OG_APP_HOST:?Set OG_APP_HOST}
+      OG_MESSAGING_HOST: ${OG_MESSAGING_HOST:?Set OG_MESSAGING_HOST}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [app, rails]
+    restart: unless-stopped
+volumes:
+  caddy_data:
+  caddy_config:

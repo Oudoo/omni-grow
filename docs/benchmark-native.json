@@ -1,0 +1,130 @@
+{
+  "at": "2026-10-11T14:49:52.558Z",
+  "connections": 2000,
+  "active_messages": "one conversation, sequential HTTP operations with other contacts idle",
+  "latency": {
+    "incoming_message": {
+      "samples": 30,
+      "p50_ms": 47.64,
+      "p95_ms": 132.45,
+      "max_ms": 188.78
+    },
+    "outgoing_message": {
+      "samples": 30,
+      "p50_ms": 66.39,
+      "p95_ms": 201.19,
+      "max_ms": 229.08
+    },
+    "customer_typing": {
+      "samples": 30,
+      "p50_ms": 85.41,
+      "p95_ms": 252.47,
+      "max_ms": 312.69
+    },
+    "agent_typing": {
+      "samples": 30,
+      "p50_ms": 89.62,
+      "p95_ms": 299.77,
+      "max_ms": 309.64
+    },
+    "agent_presence": {
+      "samples": 30,
+      "p50_ms": 16.45,
+      "p95_ms": 45.61,
+      "max_ms": 66.61
+    }
+  },
+  "resources_before": [
+    {
+      "BlockIO": "9.5MB / 28MB",
+      "CPUPerc": "0.21%",
+      "Container": "c22f20b3e68ddfc19928246ddfa4078fabc23c871e1dad2c57491c90332d7078",
+      "ID": "c22f20b3e68d",
+      "MemPerc": "0.28%",
+      "MemUsage": "97.07MiB / 33.29GiB",
+      "Name": "omnigrow-postgres-1",
+      "NetIO": "6.58MB / 18.4MB",
+      "PIDs": "16"
+    },
+    {
+      "BlockIO": "0B / 107MB",
+      "CPUPerc": "19.60%",
+      "Container": "37febd62cc88b4809e42fe00b5630d93ead544a601c799b79b254c4cbc543bee",
+      "ID": "37febd62cc88",
+      "MemPerc": "1.35%",
+      "MemUsage": "461.5MiB / 33.29GiB",
+      "Name": "omnigrow-rails-1",
+      "NetIO": "13.9MB / 27.4MB",
+      "PIDs": "19"
+    },
+    {
+      "BlockIO": "3.06MB / 9.99MB",
+      "CPUPerc": "0.54%",
+      "Container": "45b74912f59704c922018287abdf6951bae1e2776491bc8b3a141e5dd4b66553",
+      "ID": "45b74912f597",
+      "MemPerc": "0.02%",
+      "MemUsage": "5.219MiB / 33.29GiB",
+      "Name": "omnigrow-redis-1",
+      "NetIO": "8.86MB / 4.79MB",
+      "PIDs": "6"
+    },
+    {
+      "BlockIO": "0B / 102MB",
+      "CPUPerc": "0.24%",
+      "Container": "bfb2e18bda65ab6faed0327f0402e95224534c54d5c51e874615bcbd8ace76ea",
+      "ID": "bfb2e18bda65",
+      "MemPerc": "1.63%",
+      "MemUsage": "557MiB / 33.29GiB",
+      "Name": "omnigrow-worker-1",
+      "NetIO": "9.8MB / 8.32MB",
+      "PIDs": "16"
+    }
+  ],
+  "resources_loaded": [
+    {
+      "BlockIO": "9.5MB / 33.7MB",
+      "CPUPerc": "0.02%",
+      "Container": "c22f20b3e68ddfc19928246ddfa4078fabc23c871e1dad2c57491c90332d7078",
+      "ID": "c22f20b3e68d",
+      "MemPerc": "0.29%",
+      "MemUsage": "98.5MiB / 33.29GiB",
+      "Name": "omnigrow-postgres-1",
+      "NetIO": "9.18MB / 29.8MB",
+      "PIDs": "16"
+    },
+    {
+      "BlockIO": "0B / 107MB",
+      "CPUPerc": "0.01%",
+      "Container": "37febd62cc88b4809e42fe00b5630d93ead544a601c799b79b254c4cbc543bee",
+      "ID": "37febd62cc88",
+      "MemPerc": "1.56%",
+      "MemUsage": "531.2MiB / 33.29GiB",
+      "Name": "omnigrow-rails-1",
+      "NetIO": "29MB / 39.7MB",
+      "PIDs": "27"
+    },
+    {
+      "BlockIO": "3.26MB / 12.3MB",
+      "CPUPerc": "0.66%",
+      "Container": "45b74912f59704c922018287abdf6951bae1e2776491bc8b3a141e5dd4b66553",
+      "ID": "45b74912f597",
+      "MemPerc": "0.02%",
+      "MemUsage": "6.453MiB / 33.29GiB",
+      "Name": "omnigrow-redis-1",
+      "NetIO": "15MB / 10.2MB",
+      "PIDs": "6"
+    },
+    {
+      "BlockIO": "0B / 102MB",
+      "CPUPerc": "0.00%",
+      "Container": "bfb2e18bda65ab6faed0327f0402e95224534c54d5c51e874615bcbd8ace76ea",
+      "ID": "bfb2e18bda65",
+      "MemPerc": "1.65%",
+      "MemUsage": "561.4MiB / 33.29GiB",
+      "Name": "omnigrow-worker-1",
+      "NetIO": "15.4MB / 10.7MB",
+      "PIDs": "16"
+    }
+  ],
+  "under_100ms_for_all_samples": false
+}

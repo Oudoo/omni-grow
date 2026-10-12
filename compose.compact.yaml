@@ -1,0 +1,13 @@
+# Local option for Docker VFS and small development machines. Production keeps
+# separate web and worker services through compose.production.yaml.
+services:
+  rails:
+    command: [sh, /app/omnigrow-local-engine.sh]
+    volumes:
+      - ./scripts/local-engine.sh:/app/omnigrow-local-engine.sh:ro
+    environment:
+      OMNIGROW_COMPACT: '1'
+    healthcheck:
+      test: [CMD-SHELL, 'kill -0 $$(cat /tmp/omnigrow-worker.pid) && ruby -rnet/http -e ''exit(Net::HTTP.new("127.0.0.1",3000,nil).get("/api").code == "200" ? 0 : 1)''']
+  worker:
+    profiles: [separate-worker]

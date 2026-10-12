@@ -1,0 +1,66 @@
+name: omnigrow
+x-engine: &engine
+  image: chatwoot/chatwoot@sha256:a4b7eea7353a9b585d0f29f2c57c7549710db961b119f7f1561b2fe964f48f65
+  env_file: .local/engine.env
+  volumes:
+    - storage:/app/storage
+    - ./scripts/bootstrap.rb:/app/omnigrow-bootstrap.rb:ro
+    - ./scripts/test-fixture.rb:/app/omnigrow-test-fixture.rb:ro
+  environment:
+    RAILS_ENV: production
+    NODE_ENV: production
+    INSTALLATION_ENV: docker
+  restart: unless-stopped
+  stop_grace_period: 45s
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+
+services:
+  storage_tools:
+    image: redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    profiles: [maintenance]
+    entrypoint: [sh]
+    volumes: [storage:/data]
+    network_mode: none
+    read_only: true
+  postgres:
+    image: pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
+    env_file: .local/engine.env
+    volumes: [postgres:/var/lib/postgresql/data]
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d chatwoot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  redis:
+    image: redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    env_file: .local/engine.env
+    command: [sh, -c, 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
+    volumes: [redis:/data]
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  rails:
+    <<: *engine
+    entrypoint: docker/entrypoints/rails.sh
+    command: [bundle, exec, rails, s, -p, '3000', -b, 0.0.0.0]
+    ports: ["127.0.0.1:3001:3000"]
+    healthcheck:
+      test: [CMD-SHELL, "ruby -rnet/http -e 'exit(Net::HTTP.new(\"127.0.0.1\",3000,nil).get(\"/api\").code == \"200\" ? 0 : 1)'"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+  worker:
+    <<: *engine
+    command: [bundle, exec, sidekiq, -C, config/sidekiq.yml]
+
+volumes:
+  postgres:
+  redis:
+  storage:

@@ -1,0 +1,21 @@
+{$OG_APP_HOST} {
+  encode zstd gzip
+  header Strict-Transport-Security "max-age=31536000"
+  request_body {
+    max_size 20MB
+  }
+  # Caddy replaces incoming X-Forwarded-For and identifies the actual client.
+  reverse_proxy app:3000 {
+    header_up X-Real-IP {remote_host}
+  }
+}
+
+{$OG_MESSAGING_HOST} {
+  encode zstd gzip
+  header Strict-Transport-Security "max-age=31536000"
+  request_body {
+    max_size 20MB
+  }
+  # WebSocket upgrades and provider callbacks reach the same messaging engine.
+  reverse_proxy rails:3000
+}

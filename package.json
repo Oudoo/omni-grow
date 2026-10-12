@@ -1,0 +1,45 @@
+{
+  "name": "omnigrow",
+  "version": "0.1.0",
+  "private": true,
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "local": "node scripts/local.mjs",
+    "local:status": "node scripts/doctor.mjs",
+    "local:credentials": "node scripts/credentials.mjs",
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "test:e2e": "playwright test",
+    "setup": "node scripts/setup.mjs",
+    "services:up": "node scripts/services.mjs up",
+    "services:down": "node scripts/services.mjs down",
+    "backup": "node scripts/backup.mjs",
+    "snapshot": "node scripts/snapshot.mjs",
+    "restore:snapshot": "node scripts/restore-snapshot.mjs",
+    "test:recovery": "node scripts/recovery-check.mjs",
+    "prepare:production": "node scripts/prepare-production.mjs",
+    "test:load": "node scripts/load.mjs"
+  },
+  "dependencies": {
+    "@rails/actioncable": "8.0.200",
+    "iron-session": "8.0.4",
+    "lucide-react": "^0.468.0",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "swr": "^2.3.6",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^24.0.0",
+    "@types/rails__actioncable": "8.0.3",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
