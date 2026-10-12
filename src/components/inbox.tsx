@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import useSWR, { useSWRConfig } from 'swr';
 import { ArrowLeft, ArrowUpRight, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, FileText, Inbox, LockKeyhole, MessageCircle, MoreHorizontal, Paperclip, Search, Send, Tag, UserRound, X, Zap } from 'lucide-react';
-import { api, channelClass, channelName, initials, timeLabel } from '@/lib/client';
+import { api, channelClass, channelName, ClientError, initials, timeLabel } from '@/lib/client';
 import { safeExternalUrl } from '@/lib/policy';
 import { useConversationDraft } from '@/lib/drafts';
 import type { Agent, CannedResponse, Conversation, Inbox as ChannelInbox, Message, Profile } from '@/lib/types';
@@ -112,24 +112,56 @@ function Thread({ id, inboxes, profile, refreshTick, typing, onChange, back }: {
     setBusy(true); setActionError(undefined);
     try { await api(`conversations/${id}/${path}`, 'POST', data); await mutate(); onChange(); } catch (e) { setActionError(e as Error); } finally { setBusy(false); }
   }
+  async function assign(value: string) {
+    const assigneeId = value ? Number(value) : null;
+    setBusy(true); setActionError(undefined);
+    try {
+      // Assignment is last-write-wins in the engine. Re-read before writing so two agents claiming
+      // the same conversation at once do not silently overwrite each other.
+      const fresh = await api<Conversation>(`conversations/${id}`);
+      const currentId = fresh.meta.assignee?.id ?? null, shownId = conversation?.meta.assignee?.id ?? null;
+      if (currentId !== shownId && currentId !== null && currentId !== assigneeId) {
+        await mutate(fresh, { revalidate: false });
+        throw new Error(`A teammate just assigned this conversation to ${fresh.meta.assignee?.name || 'someone else'}. Choose again to reassign it.`);
+      }
+      await api(`conversations/${id}/assignments`, 'POST', { assignee_id: assigneeId }); await mutate(); onChange();
+    } catch (e) { setActionError(e as Error); } finally { setBusy(false); }
+  }
   function updateDraft(value: string) {
     setDraft(value);
     if (Date.now() - lastTyping.current > 3500) { lastTyping.current = Date.now(); api(`conversations/${id}/toggle_typing_status`, 'POST', { typing_status: value ? 'on' : 'off', is_private: note }).catch(() => {}); }
+  }
+  // A gateway error or timeout can arrive after the engine already stored the message. Check the
+  // thread before asking the agent to resend, so a retry does not deliver the same reply twice.
+  async function alreadyDelivered(content: string) {
+    try {
+      const latest = await api<{ payload: Message[] }>(`conversations/${id}/messages`);
+      const since = Date.now() / 1000 - 180;
+      return latest.payload.some(message => message.message_type === 1 && !!message.private === note && message.sender?.id === profile.id && message.created_at >= since && (message.content || '') === content && (!files.length || (message.attachments?.length || 0) > 0));
+    } catch { return false; }
   }
   async function send(event: React.FormEvent) {
     event.preventDefault(); if (sending || composer.missingFiles.length || (!draft.trim() && !files.length)) return;
     if (!composer.beginSend()) return;
     setActionError(undefined);
-    try {
-      if (files.length) { const form = new FormData(); form.set('content', draft.trim()); form.set('message_type', 'outgoing'); form.set('private', String(note)); for (const file of files) form.append('attachments[]', file); await api(`conversations/${id}/messages`, 'POST', form); }
-      else await api(`conversations/${id}/messages`, 'POST', { content: draft.trim(), message_type: 'outgoing', private: note });
+    const content = draft.trim();
+    const finish = async () => {
       // Preserve a new draft or attachment selection made while this send was in flight.
       setDraft(current => current === draft ? '' : current);
       setFiles(current => current === files ? [] : current);
       stickToBottom.current = true; setAtBottom(true);
       await reloadMessages(); onChange();
       api(`conversations/${id}/toggle_typing_status`, 'POST', { typing_status: 'off' }).catch(() => {});
-    } catch (e) { setActionError(e as Error); } finally { composer.endSend(); }
+    };
+    try {
+      if (files.length) { const form = new FormData(); form.set('content', content); form.set('message_type', 'outgoing'); form.set('private', String(note)); for (const file of files) form.append('attachments[]', file); await api(`conversations/${id}/messages`, 'POST', form); }
+      else await api(`conversations/${id}/messages`, 'POST', { content, message_type: 'outgoing', private: note });
+      await finish();
+    } catch (e) {
+      const status = e instanceof ClientError ? e.status : -1;
+      if ([0, 502, 503, 504].includes(status) && await alreadyDelivered(content)) { await finish(); setActionError(new Error('Your message was delivered even though the connection was interrupted.')); }
+      else setActionError(e as Error);
+    } finally { composer.endSend(); }
   }
   async function loadOlder() {
     if (!messages.length) return; setLoadingHistory(true);
@@ -147,7 +179,7 @@ function Thread({ id, inboxes, profile, refreshTick, typing, onChange, back }: {
   if (!conversation) return <div className="thread-pane"><header className="thread-header">{backButton}<strong>Opening conversation</strong></header><Loading /></div>;
   const contact = conversation.meta.sender;
   const templates = draft.startsWith('/') ? (canned || []).filter(c => c.short_code.startsWith(draft.slice(1))) : [];
-  const details = <div className="conversation-details"><div className="contact-panel-heading"><h3>Customer details</h3><UserRound size={17} /></div><div className="contact-profile"><span className="avatar large-avatar">{initials(contact.name)}</span><h3>{contact.name}</h3><p>{contact.email || contact.phone_number || 'Website visitor'}</p></div><div className="detail-block"><label>Assigned to<select aria-label="Assigned agent" disabled={busy} value={conversation.meta.assignee?.id || ''} onChange={e => action('assignments', { assignee_id: e.target.value ? Number(e.target.value) : null })}><option value="">Unassigned</option>{(agentData || []).map(a => <option value={a.id} key={a.id}>{a.name}{a.id === profile.id ? ' (you)' : ''}</option>)}</select></label><label>Priority<select aria-label="Conversation priority" disabled={busy} value={conversation.priority || 'none'} onChange={e => action('toggle_priority', { priority: e.target.value === 'none' ? null : e.target.value })}>{['none', 'low', 'medium', 'high', 'urgent'].map(p => <option key={p} value={p}>{p[0].toUpperCase() + p.slice(1)}</option>)}</select></label></div><div className="detail-block"><h4>CONTACT INFORMATION</h4><dl><dt>Email</dt><dd>{contact.email || 'Not provided'}</dd><dt>Phone</dt><dd>{contact.phone_number || 'Not provided'}</dd><dt>Conversation started</dt><dd>{new Date(conversation.created_at * 1000).toLocaleDateString()}</dd></dl></div><div className="detail-block"><h4><Tag size={13} /> CONVERSATION LABELS</h4><div className="label-chips">{conversation.labels?.map(label => <button key={label} className="label-chip" disabled={busy} onClick={() => action('labels', { labels: conversation.labels.filter(l => l !== label) })}>{label}<X size={11} /></button>)}</div><form className="inline-input" onSubmit={e => { e.preventDefault(); if (labelText.trim()) { action('labels', { labels: [...new Set([...(conversation.labels || []), labelText.trim()])] }); setLabelText(''); } }}><input aria-label="Add conversation label" value={labelText} onChange={e => setLabelText(e.target.value)} placeholder="Add a label…" /><button className="icon-button" disabled={busy || !labelText.trim()} aria-label="Save label"><Check size={14} /></button></form></div><div className="contact-panel-footer"><LockKeyhole size={13} /> Customer context stays with the conversation.</div></div>;
+  const details = <div className="conversation-details"><div className="contact-panel-heading"><h3>Customer details</h3><UserRound size={17} /></div><div className="contact-profile"><span className="avatar large-avatar">{initials(contact.name)}</span><h3>{contact.name}</h3><p>{contact.email || contact.phone_number || 'Website visitor'}</p></div><div className="detail-block"><label>Assigned to<select aria-label="Assigned agent" disabled={busy} value={conversation.meta.assignee?.id || ''} onChange={e => assign(e.target.value)}><option value="">Unassigned</option>{(agentData || []).map(a => <option value={a.id} key={a.id}>{a.name}{a.id === profile.id ? ' (you)' : ''}</option>)}</select></label><label>Priority<select aria-label="Conversation priority" disabled={busy} value={conversation.priority || 'none'} onChange={e => action('toggle_priority', { priority: e.target.value === 'none' ? null : e.target.value })}>{['none', 'low', 'medium', 'high', 'urgent'].map(p => <option key={p} value={p}>{p[0].toUpperCase() + p.slice(1)}</option>)}</select></label></div><div className="detail-block"><h4>CONTACT INFORMATION</h4><dl><dt>Email</dt><dd>{contact.email || 'Not provided'}</dd><dt>Phone</dt><dd>{contact.phone_number || 'Not provided'}</dd><dt>Conversation started</dt><dd>{new Date(conversation.created_at * 1000).toLocaleDateString()}</dd></dl></div><div className="detail-block"><h4><Tag size={13} /> CONVERSATION LABELS</h4><div className="label-chips">{conversation.labels?.map(label => <button key={label} className="label-chip" disabled={busy} onClick={() => action('labels', { labels: conversation.labels.filter(l => l !== label) })}>{label}<X size={11} /></button>)}</div><form className="inline-input" onSubmit={e => { e.preventDefault(); if (labelText.trim()) { action('labels', { labels: [...new Set([...(conversation.labels || []), labelText.trim()])] }); setLabelText(''); } }}><input aria-label="Add conversation label" value={labelText} onChange={e => setLabelText(e.target.value)} placeholder="Add a label…" /><button className="icon-button" disabled={busy || !labelText.trim()} aria-label="Save label"><Check size={14} /></button></form></div><div className="contact-panel-footer"><LockKeyhole size={13} /> Customer context stays with the conversation.</div></div>;
   return <>
     <section className="thread-pane" aria-label={`Conversation with ${contact.name}`}>
       <header className="thread-header">{backButton}<span className="avatar">{initials(contact.name)}</span><div className="thread-title"><strong>{contact.name}</strong><span><span className={`channel-label ${channelClass(inbox)}`}>{channelName(inbox)}</span><span className="muted">{inbox?.name} · #{id}</span></span></div><button className="icon-button details-toggle" aria-label="Conversation details" onClick={() => setShowDetails(true)}><UserRound size={18} /></button><button className={`button resolve-button ${conversation.status === 'resolved' ? 'secondary' : 'primary'}`} disabled={busy} onClick={() => action('toggle_status', { status: conversation.status === 'open' ? 'resolved' : 'open' })}><CircleCheck size={16} />{conversation.status === 'resolved' ? 'Reopen' : conversation.status === 'pending' || conversation.status === 'snoozed' ? 'Take over' : 'Resolve'}</button></header>

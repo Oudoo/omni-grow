@@ -48,7 +48,7 @@ async function connectStream() {
   if (!profileResponse.ok) throw new Error('Native benchmark session did not validate.');
   const profileData = await profileResponse.json(), profile = profileData.data || profileData;
   if (!process.env.SESSION_SECRET) throw new Error('Run setup before benchmarking the authenticated stream.');
-  cookie = `og_session=${await sealData({ auth: fixture.auth, profile, accountId: fixture.account_id, issuedAt: Date.now() }, { password: process.env.SESSION_SECRET, ttl: 8 * 60 * 60 })}`;
+  cookie = `og_session=${await sealData({ auth: fixture.auth, profile, accountId: fixture.account_id, createdAt: Date.now(), lastSeenAt: Date.now() }, { password: process.env.SESSION_SECRET, ttl: 8 * 60 * 60 })}`;
   const controller = new AbortController();
   const response = await fetch(new URL('/api/realtime', app), { headers: { Cookie: cookie }, signal: controller.signal });
   if (!response.ok || !response.headers.get('content-type')?.includes('text/event-stream')) throw new Error('Authenticated benchmark stream was rejected.');

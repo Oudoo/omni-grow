@@ -2,6 +2,17 @@
 
 Evidence applies to this cloud instance. The reusable configuration draft is saved; it has not been published or verified in a fresh task. No public deployment has been performed.
 
+## Passed for the hardening release
+
+The hardening release (see [production readiness](PRODUCTION_READINESS.md)) was verified in a sandbox running the Docker daemon with the VFS driver, the real pinned engine and the development server:
+
+- TypeScript checking, **11 unit tests** (proxy policy, outbound HTTPS rule, session lifetime, Content Security Policy builder), the production build (every page rendered per request, so nonces apply), syntax checks of every helper script, the Bash scripts and the engine initializer, `docker compose config` for the base, compact and production layouts (the production overlay drops the engine's loopback publish), and `caddy validate` with Caddy 2.10.2 against the Caddyfile. The Caddy JSON was inspected to confirm that outside addresses receive 404 for `/api/health` and the engine console before any proxying.
+- The real engine (`/api` reports 4.18.0 from the tag digest) booted with the mounted Twilio initializer and the appended defaults. Unsigned `POST /twilio/callback` and `/twilio/delivery_status` answered **403** with a request-id-tagged warning; an unsigned `POST /webhooks/whatsapp/+15550000000` answered **401**; `/health` answered 200; the owner was provisioned as engine super admin; engine request logs are structured JSON.
+- The browser suite ran against that engine three times. The final run: **20 of 20 passed in 1.6 minutes**, including the new hardening test (request id and nonce on the login page with the nonce present on the rendered scripts, health probe, violation report endpoint, 403/401 for unsigned provider callbacks, 400 for an `http://` webhook endpoint, 429 for a seventh live stream per sign-in, 401 for a validly sealed session older than the absolute limit, and the administrator-only reports notice for an agent) and the WhatsApp connect form's required password-type app secret. The two earlier runs each had one failure in a pre-existing test: the mobile account-menu test clicked the menu before React had hydrated the reloaded workspace, and the website-widget test expected the widget's home screen after a reload although the native widget opens the conversation directly when agent replies arrived unread. Both tests now tolerate those timings; no behavior assertion was removed. Across all runs the app logged no error lines and no Content Security Policy violation other than the synthetic report posted by the test, so the policy is expected to be enforceable in production after the documented observation period.
+- Dependency audit: zero known vulnerabilities after upgrading iron-session to 9.0.1 and removing the unused ActionCable packages.
+
+Not exercised here: the production image build (performed by the CI workflow), provider deliveries that need real credentials, and SIGTERM draining of live streams, which is covered by code review only.
+
 ## Passed for the local release
 
 - The final Next.js production build completed successfully. Its standalone server passed frontend/backend health, unauthenticated private-page redirection, the branded login page, a real owner sign-in, a scoped inbox read, and logout. This was a local HTTP smoke check, not a deployment.

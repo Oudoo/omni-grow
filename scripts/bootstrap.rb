@@ -18,5 +18,12 @@ unless user
   end
 end
 raise 'Owner has no workspace membership' if user.accounts.empty?
+# The installation owner also administers the engine itself (installation settings, feature flags,
+# the job dashboard) through the native /super_admin console, with the same credentials. Passwords
+# are never changed here.
+if credentials['super_admin'] && !user.is_a?(SuperAdmin)
+  user.update!(type: 'SuperAdmin')
+  user = User.find(user.id)
+end
 puts 'OmniGrow workspace owner is provisioned. No sample contacts or conversations were created.'
-puts "OG_BOOTSTRAP_JSON:#{JSON.generate({ owner_id: user.id })}"
+puts "OG_BOOTSTRAP_JSON:#{JSON.generate({ owner_id: user.id, super_admin: user.is_a?(SuperAdmin) })}"

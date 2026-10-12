@@ -4,11 +4,14 @@ import { compactMode, compose, engineServices } from './docker.mjs';
 import { assertNoInterruptedRestore } from './restore-snapshot.mjs';
 process.chdir(fileURLToPath(new URL('..', import.meta.url)));
 let failed = false;
-for (const file of ['.env.local', '.local/engine.env', '.local/bootstrap-state.json', '.local/bootstrap-credentials.json']) {
-  const exists = await access(file).then(() => true, () => false);
-  console.log(`${exists ? 'OK' : 'MISSING'} ${file}`);
-  if (!exists) failed = true;
+const exists = async file => access(file).then(() => true, () => false);
+for (const file of ['.env.local', '.local/engine.env', '.local/bootstrap-state.json']) {
+  const ok = await exists(file);
+  console.log(`${ok ? 'OK' : 'MISSING'} ${file}`);
+  if (!ok) failed = true;
 }
+// The initial credentials file is optional once the owner exists; deleting it after the first sign-in is recommended.
+console.log(`${await exists('.local/bootstrap-credentials.json') ? 'PRESENT' : 'REMOVED'} .local/bootstrap-credentials.json (optional after first sign-in)`);
 console.log(`Messaging layout: ${compactMode() ? 'compact local web + worker' : 'separate web and worker'}`);
 try {
   await assertNoInterruptedRestore();
@@ -21,7 +24,7 @@ try {
     if (!ready) failed = true;
   }
 } catch (error) { console.log(error.message); failed = true; }
-for (const [name, url] of [['Messaging', 'http://127.0.0.1:3001/api'], ['Workspace', 'http://127.0.0.1:3000/api/health']]) {
+for (const [name, url] of [['Messaging', 'http://127.0.0.1:3001/health'], ['Workspace', 'http://127.0.0.1:3000/api/health']]) {
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
     const ready = response.ok && (name !== 'Workspace' || (await response.json()).messaging === 'reachable');

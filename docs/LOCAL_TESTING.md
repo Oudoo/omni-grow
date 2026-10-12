@@ -19,7 +19,7 @@
 
 3. Wait for the messaging service and Next.js ready messages. The first launch downloads pinned backend images and initializes PostgreSQL; it can take several minutes.
 4. On your own computer, enter `http://localhost:3000` in your browser. Use `localhost` consistently because the login origin is bound to it. This cloud onboarding UI does not provide a browser preview.
-5. Open a second terminal in the same source folder and run `npm run local:credentials`. It prints your generated owner email and password only in an interactive terminal. Those values also live in `.local/bootstrap-credentials.json`. If you later change the password, use your new one.
+5. Open a second terminal in the same source folder and run `npm run local:credentials`. It prints your generated owner email and password only in an interactive terminal. Those values also live in `.local/bootstrap-credentials.json`. After changing the password, delete that file; repeat runs identify the owner through `.local/bootstrap-state.json` and never reset the password. The owner also opens the engine's installation console at `http://localhost:3001/super_admin` with the same credentials.
 
 No hosting account, domain, provider token, or paid AI API is needed for website chat and local inbox testing.
 
@@ -39,8 +39,9 @@ No hosting account, domain, provider token, or paid AI API is needed for website
 - **Ctrl+C** in the launcher stops the frontend. `npm run services:down` stops messaging containers without deleting their data volumes.
 - Run `npm run local` again to resume. Setup preserves existing keys, the owner identity, and customer data. `npm run local:status` checks configuration files, all required container health, the API, and free space.
 - Do not run `docker compose down -v` on your installation: that deletes volumes. Do not delete `.local` or regenerate encryption keys to fix a login problem.
-- Keep `.env.local`, `.local/engine.env`, `.local/bootstrap-state.json`, `.local/bootstrap-credentials.json`, `.local/runtime.json`, and snapshots private. Git and the source ZIP exclude them; each fresh installation generates its own credentials.
-- `npm run snapshot` pauses messaging briefly and saves database, attachment, and Redis state under `.local/snapshot`. Store a copy with the private files somewhere separate from the computer. See [recovery instructions](DEPLOYMENT.md).
+- Keep `.env.local`, `.local/engine.env`, `.local/bootstrap-state.json`, `.local/bootstrap-credentials.json`, `.local/runtime.json`, backups and snapshots private. Git and the source ZIP exclude them; each fresh installation generates its own credentials.
+- `npm run backup` saves an online database dump and attachment archive under `.local/backups` without pausing anything. `npm run snapshot` pauses messaging briefly and saves database, attachment, and Redis state under `.local/snapshot`. Store a copy with the private files somewhere separate from the computer. See [recovery instructions](DEPLOYMENT.md).
+- The workspace sends a report-only Content Security Policy. Violations appear in the browser console and as `content security policy violation` lines in the Next.js terminal; none are expected in normal use.
 
 ## Troubleshooting
 
@@ -52,7 +53,8 @@ No hosting account, domain, provider token, or paid AI API is needed for website
 | Worker missing on a normal Docker installation | Run `npm run services:up`. Compact VFS mode intentionally runs the worker inside the Rails container. |
 | Low disk space | Free space outside your data volumes. Setup selects compact mode automatically for Docker VFS and records it in `.local/runtime.json`; you can set its `compact` value to `true` locally, then rerun setup. |
 | Interrupted restore marker | Do not remove it blindly. Inspect database, attachments, and Redis as described in the recovery guide before resuming. |
-| Repeated sign-ins return 429 | Honor the native rate limit and wait for its retry period. |
+| Repeated sign-ins return 429 | The engine allows five sign-in attempts per five minutes per client address; wait for the retry period. |
+| "Too many live connections" | At most six live event streams are open per sign-in; close other OmniGrow tabs. |
 | Channel receives no external messages | Website chat works locally. Social/SMS webhooks require a public HTTPS endpoint and authorized provider configuration. |
 
 ## Optional automated checks

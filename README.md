@@ -17,7 +17,7 @@ npm run local
 
 If you downloaded a source ZIP instead, extract it and run the two npm commands from its folder.
 
-Setup generates private random credentials and encryption keys once, prepares the real database, and starts the messaging services. It preserves existing configuration and account data on repeat runs. In a second terminal, run `npm run local:credentials` to display your initial login privately. It refuses redirected output. The same details are in `.local/bootstrap-credentials.json`; never commit or paste them into chat. The app listens on port 3000; the engine is bound to loopback port 3001. PostgreSQL and Redis have no published ports. The cloud onboarding UI does not provide a web preview.
+Setup generates private random credentials and encryption keys once, prepares the real database, and starts the messaging services. It preserves existing configuration and account data on repeat runs. In a second terminal, run `npm run local:credentials` to display your initial login privately. It refuses redirected output. The same details are in `.local/bootstrap-credentials.json`; never commit or paste them into chat, and delete the file after changing the owner password. The app listens on port 3000; the engine is bound to loopback port 3001 locally only. PostgreSQL and Redis have no published ports. The cloud onboarding UI does not provide a web preview.
 
 Sign in, open **Channels → Connect website**, configure an inbox, and open **Install widget → Test real widget**. This exercises the same real widget used on customer websites. This cloud workspace has a Website Support inbox already; a fresh local installation starts without channels. The `/demo?token=…` page embeds the native widget using an inbox's public website token.
 
@@ -37,7 +37,7 @@ npm run test:load
 
 Browser tests create isolated accounts against the running database, exercise actual channel and UI flows, and remove their records afterward. They honor native login throttles, so a repeated run can wait up to five minutes. Test credentials, session files, logs, and reports remain ignored. Load testing creates 2,000 real WebSocket subscriptions in an isolated account and records measured latency; it never targets a remote service.
 
-See [validation](docs/VALIDATION.md), [channel configuration](docs/CHANNELS.md), [deployment and recovery](docs/DEPLOYMENT.md), and [architecture and scope](docs/ARCHITECTURE.md).
+See [validation](docs/VALIDATION.md), [channel configuration](docs/CHANNELS.md), [deployment and recovery](docs/DEPLOYMENT.md), [architecture and scope](docs/ARCHITECTURE.md), and the [production readiness status](docs/PRODUCTION_READINESS.md). GitHub Actions run typecheck, unit tests, the production build, configuration validation and an image build on every push; the browser suite against the real engine runs nightly and on demand.
 
 ## Reuse this cloud environment
 

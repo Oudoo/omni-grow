@@ -2,6 +2,7 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import { spawn } from 'node:child_process';
 import { openRealtime, closeRealtimeStreams } from '../realtime-helper';
 import { readFile, writeFile } from 'node:fs/promises';
+import { loadEnvConfig } from '@next/env';
 
 interface Fixture { switch_account_id: number; accounts: { id: number; inbox_id: number; api_inbox_id: number; website_token: string; identifier: string }[]; users: { id: number; email: string; password: string }[]; agent: { id: number; email: string; password: string }; mfa: { id: number; email: string; password: string; backup_code: string } }
 let fixture: Fixture, apiA: APIRequestContext, apiB: APIRequestContext, apiAgent: APIRequestContext;
@@ -136,8 +137,11 @@ test('runs the actual website widget, receives a reply, and preserves history af
   await expect(page.locator('.conversation-item')).toHaveCount(2);
   await expect(page.getByRole('region', { name: 'Conversations', exact: true })).toBeVisible();
   await visitor.reload(); await visitor.getByRole('button', { name: 'Open chat window' }).click();
-  await visitor.frameLocator('#chatwoot_live_chat_widget').getByText('Continue conversation', { exact: true }).click();
-  await expect(visitor.frameLocator('#chatwoot_live_chat_widget').getByText('Hello back from OmniGrow', { exact: true })).toBeVisible();
+  // After a reload the native widget shows either its home screen or, when agent replies arrived unread, the conversation itself.
+  const reopened = visitor.frameLocator('#chatwoot_live_chat_widget');
+  const continueConversation = reopened.getByText('Continue conversation', { exact: true });
+  if (await continueConversation.waitFor({ state: 'visible', timeout: 5000 }).then(() => true, () => false)) await continueConversation.click();
+  await expect(reopened.getByText('Hello back from OmniGrow', { exact: true })).toBeVisible();
   await visitorContext.close();
 });
 
@@ -212,6 +216,12 @@ test('offers real SMS and LINE channel configuration without exposing credential
   await page.getByRole('button', { name: 'Connect LINE', exact: true }).click();
   await expect(page.getByLabel('LINE channel secret')).toHaveAttribute('type', 'password');
   await expect(page.getByLabel('LINE channel access token')).toHaveAttribute('type', 'password');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  // The Meta app secret is required so the engine verifies every WhatsApp webhook signature.
+  await page.getByRole('button', { name: 'Connect WhatsApp', exact: true }).click();
+  await expect(page.getByLabel('Meta app secret')).toHaveAttribute('type', 'password');
+  await expect(page.getByLabel('Meta app secret')).toHaveAttribute('required', '');
+  await expect(page.getByLabel('Permanent access token')).toHaveAttribute('type', 'password');
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   expect((await apiAgent.post('/api/workspace/channels/twilio_channel', { data: {} })).status()).toBe(403);
 });
@@ -417,7 +427,11 @@ test('local quality: provides mobile controls, pending handoff, and recovery fro
     await expect(page.getByRole('button', { name: 'Sign out of OmniGrow', exact: true })).toBeVisible();
     await page.getByLabel('Switch workspace').selectOption(String(fixture.switch_account_id));
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Account menu' }).click();
+    // Switching reloads the workspace. A click that lands before React hydrates is lost, so retry until the menu opens.
+    await expect(async () => {
+      await page.getByRole('button', { name: 'Account menu' }).click();
+      await expect(page.getByRole('dialog')).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 15000 });
     await expect(page.getByLabel('Switch workspace')).toHaveValue(String(fixture.switch_account_id));
     await page.getByLabel('Switch workspace').selectOption(String(fixture.accounts[0].id));
     await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -501,6 +515,49 @@ test('closes real event streams on account switch and membership revocation', as
   expect((await apiAgent.get('/api/realtime')).status()).toBe(403);
   await expect(page).toHaveURL(/\/login$/, { timeout: 45000 });
   expect(await page.evaluate(() => Object.values(sessionStorage).some(value => value.includes('Sensitive revoked-session draft')))).toBe(false);
+});
+
+test('hardening: request ids, security policy, health probe, session limits, and engine webhook authenticity', async ({ page, request }) => {
+  const login = await request.get('/login');
+  expect(login.headers()['x-request-id']).toMatch(/^[A-Za-z0-9._-]{1,128}$/);
+  const policy = login.headers()['content-security-policy-report-only'];
+  const nonce = /'nonce-([A-Za-z0-9+/=]+)'/.exec(policy)?.[1];
+  expect(nonce).toBeTruthy();
+  expect(policy).toContain("'strict-dynamic'");
+  expect(policy).toContain('report-uri /api/csp-report');
+  // Dynamic rendering lets Next.js tag its own scripts with the per-request nonce.
+  expect(await login.text()).toContain(`nonce="${nonce}"`);
+  const health = await request.get('/api/health');
+  expect(health.status()).toBe(200);
+  expect(await health.json()).toEqual({ status: 'ok', messaging: 'reachable' });
+  expect((await request.post('/api/csp-report', { headers: { 'Content-Type': 'application/csp-report' }, data: JSON.stringify({ 'csp-report': { 'document-uri': `${base}/inbox`, 'violated-directive': 'script-src', 'blocked-uri': 'https://evil.example/x.js' } }) })).status()).toBe(204);
+  // Provider callbacks the engine cannot authenticate are rejected before any message is created.
+  const twilio = { AccountSid: 'AC00000000000000000000000000000000', From: '+15550000001', To: '+15550000000', Body: 'spoofed inbound SMS', SmsSid: 'SM00000000000000000000000000000000' };
+  expect((await request.post(`${engine}/twilio/callback`, { form: twilio })).status()).toBe(403);
+  expect((await request.post(`${engine}/twilio/delivery_status`, { form: { AccountSid: twilio.AccountSid, From: twilio.To, MessageSid: twilio.SmsSid, MessageStatus: 'delivered' } })).status()).toBe(403);
+  expect((await request.post(`${engine}/webhooks/whatsapp/+15550000000`, { data: { object: 'whatsapp_business_account', entry: [] } })).status()).toBe(401);
+  // Endpoints the engine calls back must be HTTPS, whatever the browser form says.
+  expect((await apiA.post('/api/workspace/webhooks', { data: { webhook: { url: 'http://insecure.omnigrow.invalid/events', subscriptions: ['message_created'] } } })).status()).toBe(400);
+  // Live connections are capped per sign-in.
+  for (let index = 0; index < 6; index++) await openRealtime(apiA);
+  const { cookies } = await apiA.storageState();
+  const seventh = await fetch(`${base}/api/realtime`, { headers: { Cookie: cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ') } });
+  expect(seventh.status).toBe(429);
+  await seventh.body?.cancel();
+  closeRealtimeStreams();
+  // A validly sealed session older than the absolute limit is rejected.
+  loadEnvConfig(process.cwd());
+  const { sealData } = await import('iron-session');
+  const stale = await sealData({
+    auth: { 'access-token': 'expired', client: 'expired', uid: 'expired@og-tests.local' },
+    profile: { id: 1, name: 'Expired', email: 'expired@og-tests.local', accounts: [{ id: 1, name: 'Expired', role: 'agent' }], account_id: 1 },
+    accountId: 1, createdAt: Date.now() - 25 * 60 * 60 * 1000, lastSeenAt: Date.now()
+  }, { password: process.env.SESSION_SECRET!, ttl: 48 * 60 * 60 });
+  expect((await request.get('/api/auth/me', { headers: { Cookie: `og_session=${stale}` } })).status()).toBe(401);
+  // Agents are told that account reports are administrator-only instead of seeing an error.
+  await page.context().addCookies((await apiAgent.storageState()).cookies);
+  await page.goto('/reports');
+  await expect(page.getByText('Reports are available to workspace administrators')).toBeVisible();
 });
 
 test('verifies MFA in the branded login without exposing its challenge token', async ({ page }) => {

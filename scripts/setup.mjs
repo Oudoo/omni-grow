@@ -14,13 +14,16 @@ const exists = async path => access(path).then(() => true, () => false);
 const hex = size => randomBytes(size).toString('hex');
 
 if (!await exists('.env.local')) {
-  await writeFile('.env.local', `APP_URL=http://localhost:3000\nENGINE_URL=http://127.0.0.1:3001\nNEXT_PUBLIC_ENGINE_URL=http://localhost:3001\nSESSION_SECRET=${hex(32)}\n`, { mode: 0o600, flag: 'wx' });
+  await writeFile('.env.local', `APP_URL=http://localhost:3000\nENGINE_URL=http://127.0.0.1:3001\nNEXT_PUBLIC_ENGINE_URL=http://localhost:3001\nSESSION_SECRET=${hex(32)}\n# CSP_MODE=report-only|enforce|off (see docs/DEPLOYMENT.md)\nCSP_MODE=report-only\n`, { mode: 0o600, flag: 'wx' });
 }
 if (!await exists('.local/engine.env')) {
   const postgres = hex(24), redis = hex(24);
-  await writeFile('.local/engine.env', `SECRET_KEY_BASE=${hex(64)}\nACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=${hex(16)}\nACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=${hex(16)}\nACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=${hex(16)}\nFRONTEND_URL=http://localhost:3001\nFORCE_SSL=false\nENABLE_ACCOUNT_SIGNUP=false\nPOSTGRES_HOST=postgres\nPOSTGRES_DATABASE=chatwoot\nPOSTGRES_DB=chatwoot\nPOSTGRES_USERNAME=postgres\nPOSTGRES_USER=postgres\nPOSTGRES_PASSWORD=${postgres}\nREDIS_URL=redis://redis:6379\nREDIS_PASSWORD=${redis}\nACTIVE_STORAGE_SERVICE=local\nRAILS_LOG_TO_STDOUT=true\nRAILS_MAX_THREADS=5\nSIDEKIQ_CONCURRENCY=5\nINSTALLATION_NAME=OmniGrow\n`, { mode: 0o600, flag: 'wx' });
+  await writeFile('.local/engine.env', `SECRET_KEY_BASE=${hex(64)}\nACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=${hex(16)}\nACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=${hex(16)}\nACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=${hex(16)}\nFRONTEND_URL=http://localhost:3001\nFORCE_SSL=false\nENABLE_ACCOUNT_SIGNUP=false\nPOSTGRES_HOST=postgres\nPOSTGRES_DATABASE=chatwoot\nPOSTGRES_DB=chatwoot\nPOSTGRES_USERNAME=postgres\nPOSTGRES_USER=postgres\nPOSTGRES_PASSWORD=${postgres}\nREDIS_URL=redis://redis:6379\nREDIS_PASSWORD=${redis}\nACTIVE_STORAGE_SERVICE=local\nRAILS_LOG_TO_STDOUT=true\nRAILS_MAX_THREADS=5\nSIDEKIQ_CONCURRENCY=5\nINSTALLATION_NAME=OmniGrow\nDISABLE_TELEMETRY=true\nMAXIMUM_FILE_UPLOAD_SIZE=20\nLOGRAGE_ENABLED=true\n`, { mode: 0o600, flag: 'wx' });
 }
-if (!await exists('.local/bootstrap-credentials.json')) {
+// The initial owner credentials file is only needed until the owner exists. After the first
+// sign-in and password change, operators may delete it; repeat runs then use bootstrap-state.json.
+const hasBootstrapState = await exists('.local/bootstrap-state.json');
+if (!hasBootstrapState && !await exists('.local/bootstrap-credentials.json')) {
   await writeFile('.local/bootstrap-credentials.json', JSON.stringify({
     email: process.env.OG_OWNER_EMAIL || 'owner@omnigrow.local',
     password: randomBytes(24).toString('base64url') + 'aA1!',
@@ -48,8 +51,11 @@ await restoreSnapshot();
 const runningRails = (await run(['ps', '--status', 'running', '-q', 'rails'], { capture: true })).trim();
 const runner = runningRails ? ['exec', '-T', 'rails'] : ['run', '--rm', '-T', 'rails'];
 await run([...runner, 'bundle', 'exec', 'rails', 'db:chatwoot_prepare']);
-const credentials = JSON.parse(await readFile('.local/bootstrap-credentials.json', 'utf8'));
-if (await exists('.local/bootstrap-state.json')) Object.assign(credentials, JSON.parse(await readFile('.local/bootstrap-state.json', 'utf8')));
+const credentials = {};
+if (await exists('.local/bootstrap-credentials.json')) Object.assign(credentials, JSON.parse(await readFile('.local/bootstrap-credentials.json', 'utf8')));
+if (hasBootstrapState) Object.assign(credentials, JSON.parse(await readFile('.local/bootstrap-state.json', 'utf8')));
+// The owner also administers the engine installation (super admin) unless OG_SUPER_ADMIN=0.
+credentials.super_admin = process.env.OG_SUPER_ADMIN !== '0';
 const bootstrap = await run([...runner, 'bundle', 'exec', 'rails', 'runner', '/app/omnigrow-bootstrap.rb'], { input: JSON.stringify(credentials), capture: true });
 const provisioned = bootstrap.split('\n').find(line => line.startsWith('OG_BOOTSTRAP_JSON:'));
 if (!provisioned) throw new Error('Initial owner provisioning did not confirm its identity. Inspect the engine before retrying.');
@@ -89,4 +95,6 @@ while (Date.now() < deadline) {
   await new Promise(resolve => setTimeout(resolve, 2000));
 }
 if (!ready) throw new Error('Messaging backend did not become ready. Inspect docker compose logs rails worker.');
-console.log('Messaging backend ready. Owner credentials are in .local/bootstrap-credentials.json (not printed). Start OmniGrow with npm run dev.');
+console.log(hasBootstrapState
+  ? 'Messaging backend ready. The existing owner was retained. Start OmniGrow with npm run dev.'
+  : 'Messaging backend ready. Owner credentials are in .local/bootstrap-credentials.json (not printed). Start OmniGrow with npm run dev.');

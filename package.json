@@ -2,7 +2,9 @@
   "name": "omnigrow",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "local": "node scripts/local.mjs",
     "local:status": "node scripts/doctor.mjs",
@@ -14,6 +16,7 @@
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
     "setup": "node scripts/setup.mjs",
+    "migrate": "node scripts/migrate.mjs",
     "services:up": "node scripts/services.mjs up",
     "services:down": "node scripts/services.mjs down",
     "backup": "node scripts/backup.mjs",
@@ -24,8 +27,7 @@
     "test:load": "node scripts/load.mjs"
   },
   "dependencies": {
-    "@rails/actioncable": "8.0.200",
-    "iron-session": "8.0.4",
+    "iron-session": "^9.0.1",
     "lucide-react": "^0.468.0",
     "next": "16.4.0",
     "react": "19.3.0",
@@ -36,7 +38,6 @@
   "devDependencies": {
     "@playwright/test": "^1.56.0",
     "@types/node": "^24.0.0",
-    "@types/rails__actioncable": "8.0.3",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "tsx": "^4.20.6",
