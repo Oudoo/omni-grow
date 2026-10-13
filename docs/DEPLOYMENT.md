@@ -55,7 +55,7 @@ For a production host, use the production Compose overlay again after verifying 
 
 ## Upgrade
 
-The engine container does not migrate its database on boot. To move to a new pinned engine release: read the upstream release notes, take `OG_PRODUCTION=1 npm run snapshot`, change the digest in `compose.yaml`, pull it, run `OG_PRODUCTION=1 npm run migrate` (which applies `rails db:chatwoot_prepare`), then `docker compose ... up -d` so web and worker start on the new release. Rebuild the app image when the Next.js source changes. Test the sequence in an isolated environment first and verify a restore before accepting new traffic.
+The engine container does not migrate its database on boot. To move to a new pinned engine release: read the upstream release notes, take `OG_PRODUCTION=1 npm run snapshot`, change the digest in `compose.yaml`, and pull it. Put the site into maintenance and stop the app, Rails and worker services before migrating so old code cannot write while the schema changes. Run `OG_PRODUCTION=1 npm run migrate`, which applies `rails db:chatwoot_prepare` in a disposable container using the configured image even if an older Rails container still exists. Then use the production Compose overlay to start the app, web and worker on the new release. Rebuild the app image when the Next.js source changes. Test the sequence in an isolated environment first and verify a restore before accepting new traffic.
 
 ## Operations
 

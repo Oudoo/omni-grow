@@ -131,13 +131,18 @@ function Thread({ id, inboxes, profile, refreshTick, typing, onChange, back }: {
     setDraft(value);
     if (Date.now() - lastTyping.current > 3500) { lastTyping.current = Date.now(); api(`conversations/${id}/toggle_typing_status`, 'POST', { typing_status: value ? 'on' : 'off', is_private: note }).catch(() => {}); }
   }
-  // A gateway error or timeout can arrive after the engine already stored the message. Check the
-  // thread before asking the agent to resend, so a retry does not deliver the same reply twice.
-  async function alreadyDelivered(content: string) {
+  // A timeout can arrive after storage. Only this send's persisted identifier confirms success;
+  // repeated text or a previous attachment cannot establish that a new reply was saved.
+  async function alreadySaved(attemptId: string, after: number) {
     try {
-      const latest = await api<{ payload: Message[] }>(`conversations/${id}/messages`);
-      const since = Date.now() / 1000 - 180;
-      return latest.payload.some(message => message.message_type === 1 && !!message.private === note && message.sender?.id === profile.id && message.created_at >= since && (message.content || '') === content && (!files.length || (message.attachments?.length || 0) > 0));
+      for (let page = 0; page < 5; page++) {
+        const latest = await api<{ payload: Message[] }>(`conversations/${id}/messages?after=${after}`);
+        if (latest.payload.some(message => message.message_type === 1 && !!message.private === note && message.sender?.id === profile.id && message.content_attributes?.omnigrow_client_id === attemptId)) return true;
+        const next = Math.max(after, ...latest.payload.map(message => message.id));
+        if (next === after || latest.payload.length < 100) break;
+        after = next;
+      }
+      return false;
     } catch { return false; }
   }
   async function send(event: React.FormEvent) {
@@ -145,6 +150,8 @@ function Thread({ id, inboxes, profile, refreshTick, typing, onChange, back }: {
     if (!composer.beginSend()) return;
     setActionError(undefined);
     const content = draft.trim();
+    const attemptId = crypto.randomUUID(), beforeSend = latestId || 0;
+    const attributes = { omnigrow_client_id: attemptId };
     const finish = async () => {
       // Preserve a new draft or attachment selection made while this send was in flight.
       setDraft(current => current === draft ? '' : current);
@@ -154,13 +161,15 @@ function Thread({ id, inboxes, profile, refreshTick, typing, onChange, back }: {
       api(`conversations/${id}/toggle_typing_status`, 'POST', { typing_status: 'off' }).catch(() => {});
     };
     try {
-      if (files.length) { const form = new FormData(); form.set('content', content); form.set('message_type', 'outgoing'); form.set('private', String(note)); for (const file of files) form.append('attachments[]', file); await api(`conversations/${id}/messages`, 'POST', form); }
-      else await api(`conversations/${id}/messages`, 'POST', { content, message_type: 'outgoing', private: note });
+      if (files.length) { const form = new FormData(); form.set('content', content); form.set('message_type', 'outgoing'); form.set('private', String(note)); form.set('content_attributes', JSON.stringify(attributes)); for (const file of files) form.append('attachments[]', file); await api(`conversations/${id}/messages`, 'POST', form); }
+      else await api(`conversations/${id}/messages`, 'POST', { content, message_type: 'outgoing', private: note, content_attributes: attributes });
       await finish();
     } catch (e) {
       const status = e instanceof ClientError ? e.status : -1;
-      if ([0, 502, 503, 504].includes(status) && await alreadyDelivered(content)) { await finish(); setActionError(new Error('Your message was delivered even though the connection was interrupted.')); }
-      else setActionError(e as Error);
+      if ([0, 502, 503, 504].includes(status)) {
+        if (await alreadySaved(attemptId, beforeSend)) { await finish(); setActionError(new Error('Your message was saved even though the connection was interrupted. Check its status for delivery.')); }
+        else setActionError(new Error('We could not confirm whether this message was saved. Your draft and files are preserved. Check the conversation before retrying.'));
+      } else setActionError(e as Error);
     } finally { composer.endSend(); }
   }
   async function loadOlder() {

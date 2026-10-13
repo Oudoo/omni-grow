@@ -29,6 +29,9 @@ jobs:
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
+      - run: npx playwright install --with-deps chromium
+      - name: Verify production uploads and failed-send draft preservation
+        run: npm run test:runtime
       - name: Syntax-check helper scripts
         run: |
           for file in scripts/*.mjs; do node --check "$file"; done

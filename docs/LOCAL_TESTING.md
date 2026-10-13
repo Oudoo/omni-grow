@@ -51,7 +51,7 @@ No hosting account, domain, provider token, or paid AI API is needed for website
 | Port 3000 or 3001 in use | Stop your previous OmniGrow process or the other program using that port before launching. |
 | Messaging unavailable | Run `npm run local:status`; inspect `docker compose logs --tail=80 rails redis postgres`. Redact credentials before sharing logs. |
 | Worker missing on a normal Docker installation | Run `npm run services:up`. Compact VFS mode intentionally runs the worker inside the Rails container. |
-| Low disk space | Free space outside your data volumes. Setup selects compact mode automatically for Docker VFS and records it in `.local/runtime.json`; you can set its `compact` value to `true` locally, then rerun setup. |
+| Low disk space | Free space outside your data volumes or increase disk capacity. Setup selects compact mode for Docker VFS, but VFS also duplicates image layers and may need substantially more than 20 GB. Compact mode alone cannot guarantee that an image pull fits. Prefer Docker’s normal storage driver where supported; the cloud-only verification workaround is documented in [validation](VALIDATION.md). |
 | Interrupted restore marker | Do not remove it blindly. Inspect database, attachments, and Redis as described in the recovery guide before resuming. |
 | Repeated sign-ins return 429 | The engine allows five sign-in attempts per five minutes per client address; wait for the retry period. |
 | "Too many live connections" | At most six live event streams are open per sign-in; close other OmniGrow tabs. |
@@ -63,7 +63,10 @@ No hosting account, domain, provider token, or paid AI API is needed for website
 npm run typecheck
 npm test
 npx playwright install chromium
+# Stop the dev server before building.
+npm run build
+npm run test:runtime
 npm run test:e2e
 ```
 
-The browser suite uses the real local backend, creates its own test accounts, and removes their records afterward. Repeated runs honor native login throttling and can wait up to five minutes. Linux may require Playwright’s documented browser OS dependencies. `PLAYWRIGHT_CHROMIUM_PATH` can select an existing Chromium executable. Run `npm run build` when the dev server is stopped to verify the production bundle. `npm run test:recovery` verifies an attachment-bearing snapshot in disposable local volumes; it briefly pauses messaging twice, so run it separately from the browser suite. See [validation evidence and limits](VALIDATION.md).
+The production runtime checks use isolated synthetic failures on ports 3300/3301. The browser suite uses the real local backend, creates its own test accounts, and removes their records afterward. Repeated runs honor native login throttling and can wait up to five minutes. Linux may require Playwright’s documented browser OS dependencies. `PLAYWRIGHT_CHROMIUM_PATH` can select an existing Chromium executable. Run `npm run build` when the dev server is stopped to verify the production bundle. `npm run test:recovery` verifies an attachment-bearing snapshot in disposable local volumes; it briefly pauses messaging twice, so run it separately from the browser suite. See [validation evidence and limits](VALIDATION.md).

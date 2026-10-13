@@ -487,6 +487,73 @@ test('local quality: creates a website channel and exposes its real widget test'
   await expect(page.locator('.code-block')).toContainText('chatwootSDK.run');
 });
 
+for (const attachment of [false, true]) {
+  test(`confirms the exact stored ${attachment ? 'attachment note' : 'text reply'} when its HTTP acknowledgement is lost`, async ({ page, playwright }) => {
+    const conversation = await localConversation(playwright, `Interrupted ${attachment ? 'attachment' : 'reply'} customer`);
+    const path = `/api/workspace/conversations/${conversation.id}/messages`;
+    let posts = 0, storedId = 0, attempt = '';
+    try {
+      expect((await apiA.post(path, { data: { content: 'Repeated reply', message_type: 'outgoing', private: false } })).ok()).toBeTruthy();
+      await useExistingSession(page);
+      await page.goto(`/inbox?conversation=${conversation.id}`);
+      await expect(page.getByLabel('Reply to customer')).toBeVisible();
+      await page.route(`**${path}`, async route => {
+        if (route.request().method() !== 'POST') return route.continue();
+        posts++;
+        const response = await route.fetch();
+        expect(response.ok()).toBeTruthy();
+        const stored = await response.json();
+        storedId = stored.id; attempt = stored.content_attributes?.omnigrow_client_id;
+        // The real database committed the message; only the HTTP acknowledgement is lost.
+        await route.fulfill({ status: 502, json: { error: 'Synthetic lost acknowledgement' } });
+      });
+      if (attachment) {
+        await page.getByRole('button', { name: 'Internal note', exact: true }).click();
+        await page.locator('input[type=file]').setInputFiles({ name: 'acknowledged.txt', mimeType: 'text/plain', buffer: Buffer.from('Persisted despite lost acknowledgement') });
+        await page.getByRole('button', { name: 'Add note', exact: true }).click();
+      } else {
+        await page.getByLabel('Reply to customer').fill('Repeated reply');
+        await page.getByRole('button', { name: 'Send reply', exact: true }).click();
+      }
+      await expect(page.getByText('Your message was saved even though the connection was interrupted. Check its status for delivery.', { exact: true })).toBeVisible();
+      await expect(page.getByLabel(attachment ? 'Internal note' : 'Reply to customer', { exact: true })).toHaveValue('');
+      await expect(page.getByLabel('Remove acknowledged.txt')).toHaveCount(0);
+      expect(posts).toBe(1);
+      expect(attempt).toMatch(/^[a-f0-9-]{36}$/);
+      const history = (await (await apiA.get(`${path}?after=0`)).json()).payload;
+      const matches = history.filter((message: { content_attributes?: { omnigrow_client_id?: string } }) => message.content_attributes?.omnigrow_client_id === attempt);
+      expect(matches).toHaveLength(1);
+      expect(matches[0].id).toBe(storedId);
+      expect(matches[0].private).toBe(attachment);
+      if (attachment) {
+        const file = await conversation.customer.get(matches[0].attachments[0].data_url);
+        expect(file.ok()).toBeTruthy();
+        expect(await file.text()).toBe('Persisted despite lost acknowledgement');
+        expect(JSON.stringify(await (await conversation.customer.get(conversation.path)).json())).not.toContain(attempt);
+      }
+    } finally { await conversation.customer.dispose(); }
+  });
+}
+
+test('stores and retrieves complete 12 MiB and 20 MiB attachments through the app proxy', async ({ playwright }) => {
+  const conversation = await localConversation(playwright, 'Large attachment customer');
+  try {
+    for (const size of [12, 20]) {
+      const bytes = Buffer.alloc(size * 1024 * 1024, 'x');
+      const response = await apiA.post(`/api/workspace/conversations/${conversation.id}/messages`, { multipart: {
+        content: `${size} MiB attachment`, message_type: 'outgoing', private: 'false',
+        'attachments[]': { name: `complete-${size}.txt`, mimeType: 'text/plain', buffer: bytes }
+      } });
+      expect(response.ok()).toBeTruthy();
+      const message = await response.json();
+      expect(message.attachments[0].file_size).toBe(bytes.length);
+      const file = await conversation.customer.get(message.attachments[0].data_url);
+      expect(file.ok()).toBeTruthy();
+      expect((await file.body()).equals(bytes)).toBeTruthy();
+    }
+  } finally { await conversation.customer.dispose(); }
+});
+
 test('closes real event streams on account switch and membership revocation', async ({ page, playwright }) => {
   test.setTimeout(90000);
   const original = await openRealtime(apiA);

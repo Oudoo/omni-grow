@@ -49,7 +49,16 @@ async function run(args, options = {}) {
 await run(['up', '-d', '--wait', '--wait-timeout', '120', 'postgres', 'redis']);
 await restoreSnapshot();
 const runningRails = (await run(['ps', '--status', 'running', '-q', 'rails'], { capture: true })).trim();
-const runner = runningRails ? ['exec', '-T', 'rails'] : ['run', '--rm', '-T', 'rails'];
+// Reuse a running engine only when its immutable image ID matches the configured release.
+// This avoids another full filesystem copy on VFS during ordinary repeated local setup.
+let currentImage = false;
+if (runningRails) {
+  const desired = JSON.parse(await run(['config', '--format', 'json'], { capture: true })).services.rails.image;
+  const actual = await docker(['inspect', '--format', '{{.Image}}', runningRails], { capture: true });
+  try { currentImage = actual === await docker(['image', 'inspect', '--format', '{{.Id}}', desired], { capture: true, quiet: true }); }
+  catch { /* The configured image has not been pulled yet; the one-shot container will pull it. */ }
+}
+const runner = currentImage ? ['exec', '-T', 'rails'] : ['run', '--rm', '--no-deps', '-T', 'rails'];
 await run([...runner, 'bundle', 'exec', 'rails', 'db:chatwoot_prepare']);
 const credentials = {};
 if (await exists('.local/bootstrap-credentials.json')) Object.assign(credentials, JSON.parse(await readFile('.local/bootstrap-credentials.json', 'utf8')));

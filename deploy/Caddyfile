@@ -6,7 +6,8 @@
 	header Strict-Transport-Security "max-age=31536000"
 	header -Server
 	request_body {
-		max_size 20MB
+		# Allow multipart framing around the app/engine's 20 MiB file limit.
+		max_size 25MB
 	}
 	# Compress text and JSON only. Live event streams (text/event-stream) are left untouched.
 	encode zstd gzip {

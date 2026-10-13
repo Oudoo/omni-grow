@@ -1,6 +1,6 @@
 import { endSessionStreams } from '@/lib/realtime-server';
 import { NextRequest, NextResponse } from 'next/server';
-import { checkOrigin, engineFetch, fail, log, requestReference, session } from '@/lib/server';
+import { checkOrigin, clearSessionActivity, engineFetch, fail, log, requestReference, session } from '@/lib/server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
       endSessionStreams(state.auth, 'logout');
     }
     state.destroy();
+    await clearSessionActivity();
     return NextResponse.json({ ok: true, revoked });
   } catch (error) { return fail(error, request); }
 }

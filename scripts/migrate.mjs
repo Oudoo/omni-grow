@@ -7,7 +7,7 @@ import { assertNoInterruptedRestore } from './restore-snapshot.mjs';
 process.chdir(fileURLToPath(new URL('..', import.meta.url)));
 await assertNoInterruptedRestore();
 await compose(['up', '-d', '--wait', '--wait-timeout', '120', 'postgres', 'redis']);
-const running = (await compose(['ps', '--status', 'running', '-q', 'rails'], { capture: true })).trim();
-const runner = running ? ['exec', '-T', 'rails'] : ['run', '--rm', '-T', 'rails'];
-await compose([...runner, 'bundle', 'exec', 'rails', 'db:chatwoot_prepare']);
+// A running container may still use the previous release even after docker compose pull.
+// Always create the migration process from the image configured for this release.
+await compose(['run', '--rm', '--no-deps', '-T', 'rails', 'bundle', 'exec', 'rails', 'db:chatwoot_prepare']);
 console.log('Database schema is current. Start or restart the messaging services to run the new release: npm run services:up.');

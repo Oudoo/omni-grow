@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ApiError, checkOrigin, engineFetch, fail, jsonBody, publicProfile, readJsonBody, saveSession, session } from '@/lib/server';
+import { ApiError, checkOrigin, clearSessionActivity, engineFetch, fail, jsonBody, publicProfile, readJsonBody, saveSession, session } from '@/lib/server';
 import type { Profile } from '@/lib/types';
 
 export async function POST(request: NextRequest) {
@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
       delete state.auth; delete state.profile; delete state.accountId; delete state.createdAt; delete state.lastSeenAt;
       state.pendingMfa = { token: data.mfa_token, expiresAt: Date.now() + 5 * 60 * 1000 };
       await state.save();
+      await clearSessionActivity();
       return NextResponse.json({ mfaRequired: true });
     }
     const token = response.headers.get('access-token'), client = response.headers.get('client'), uid = response.headers.get('uid');
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
     state.createdAt = now;
     state.lastSeenAt = now;
     await saveSession(state);
+    await clearSessionActivity();
     return NextResponse.json(publicProfile(profile, account.id));
   } catch (error) { return fail(error, request); }
 }

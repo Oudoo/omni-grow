@@ -37,29 +37,31 @@ export async function GET(request: NextRequest) {
         const revoke = (reason: EndReason) => { emit('session-ended', { reason }); stop(); };
         // Membership and session expiry are re-checked every 20 seconds per sign-in by the registry,
         // which shares one engine request across all of this sign-in's tabs.
-        unregister = registerStream(state.auth, { accountId: state.accountId, expiresAt: sessionAbsoluteDeadline(state), revoke, stop });
-        request.signal.addEventListener('abort', stop, { once: true });
-        if (request.signal.aborted) { stop(); return; }
-        socket = new WebSocket(`${engineUrl().replace(/^http/, 'ws')}/cable`, ['actioncable-v1-json']);
-        socket.addEventListener('open', () => { if (!ended) socket?.send(JSON.stringify({ command: 'subscribe', identifier })); });
-        socket.addEventListener('message', message => {
-          if (ended) return;
-          try {
-            const data = JSON.parse(String(message.data));
-            if (data.type === 'confirm_subscription') { subscribed = true; clearTimeout(deadline); emit('ready', { connected: true }); }
-            else if (data.type === 'reject_subscription' || data.type === 'disconnect') stop();
-            // The native user token receives events from all of the user's
-            // memberships. Only relay the workspace selected in this session.
-            else if (data.message?.event && data.message.data?.account_id === state.accountId) emit('message', redactSecrets(data.message));
-          } catch { stop(); }
-        });
-        socket.addEventListener('error', stop); socket.addEventListener('close', stop);
-        deadline = setTimeout(stop, 10000);
-        heartbeat = setInterval(() => {
-          if (ended) return;
-          emit('heartbeat', {});
-          if (subscribed && socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ command: 'message', identifier, data: JSON.stringify({ action: 'update_presence' }) }));
-        }, 15000);
+        try {
+          unregister = registerStream(state.auth, { accountId: state.accountId, expiresAt: sessionAbsoluteDeadline(state), revoke, stop });
+          request.signal.addEventListener('abort', stop, { once: true });
+          if (request.signal.aborted) { stop(); return; }
+          socket = new WebSocket(`${engineUrl().replace(/^http/, 'ws')}/cable`, ['actioncable-v1-json']);
+          socket.addEventListener('open', () => { if (!ended) socket?.send(JSON.stringify({ command: 'subscribe', identifier })); });
+          socket.addEventListener('message', message => {
+            if (ended) return;
+            try {
+              const data = JSON.parse(String(message.data));
+              if (data.type === 'confirm_subscription') { subscribed = true; clearTimeout(deadline); emit('ready', { connected: true }); }
+              else if (data.type === 'reject_subscription' || data.type === 'disconnect') stop();
+              // The native user token receives events from all of the user's
+              // memberships. Only relay the workspace selected in this session.
+              else if (data.message?.event && data.message.data?.account_id === state.accountId) emit('message', redactSecrets(data.message));
+            } catch { stop(); }
+          });
+          socket.addEventListener('error', stop); socket.addEventListener('close', stop);
+          deadline = setTimeout(stop, 10000);
+          heartbeat = setInterval(() => {
+            if (ended) return;
+            emit('heartbeat', {});
+            if (subscribed && socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ command: 'message', identifier, data: JSON.stringify({ action: 'update_presence' }) }));
+          }, 15000);
+        } catch (error) { stop(); throw error; }
       },
       cancel() { stop(); }
     });

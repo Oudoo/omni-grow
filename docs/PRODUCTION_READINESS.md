@@ -1,6 +1,6 @@
 # Production readiness
 
-Status after the hardening release on this branch. The engine is Chatwoot 4.18.0 pinned by its tag digest; the workspace is Next.js 16.4.0. What follows is what the code now guarantees, what the operator still has to do before the first customer conversation, and what remains out of scope.
+Status after the hardening release on this branch. The engine is Chatwoot 4.18.0 pinned by its tag digest; the workspace is Next.js 16.4.0. The changes below still require acceptance on the intended host and with real providers before live customer traffic. Local tests alone do not establish production readiness.
 
 ## What the hardening release changed
 
@@ -12,12 +12,13 @@ Security and authenticity
 - Health probes use the engine's rate-limit-exempt route, and Caddy exposes `/api/health` and the engine console only to configured addresses (`deploy/Caddyfile`).
 - Callback endpoints registered through the workspace must be HTTPS (`src/lib/policy.ts`).
 - A nonce-based Content Security Policy is sent in report-only mode with a violation log endpoint, ready to enforce (`src/lib/csp.ts`, `src/proxy.ts`).
-- Request bodies are read with a byte counter so chunked uploads cannot bypass the 20 MB limit.
+- Attachment files are limited to 20 MiB in total. The app allows 1 MiB for multipart fields/framing and counts streamed bytes; Next and Caddy allow enough buffering for the complete request.
 
 Sessions and realtime
 
 - Sessions expire after eight idle hours or twenty-four hours total and renew on activity; the fixed eight-hour cut-off that logged whole teams out together is gone (`src/lib/session-policy.ts`).
-- Live event streams are capped at six per sign-in and share one authorization check per sign-in instead of one per tab (`src/lib/realtime-server.ts`).
+- Activity renewal uses a separate sealed cookie bound to the sign-in. A late renewal response cannot overwrite the selected workspace or recreate authentication after logout.
+- Live event streams are capped at six per sign-in per app process, including concurrent opens, and share one authorization check per sign-in instead of one per tab (`src/lib/realtime-server.ts`). Failed setup and cancellation release their slots.
 - Streams close on SIGTERM so deployments do not wait on them, and the production overlay allows a 20-second drain.
 - Logout always destroys the local session, even when the engine cannot be reached.
 - Users in many workspaces no longer hit the 4 KB cookie limit.
@@ -27,10 +28,12 @@ Reliability and operations
 - Online backups with checksums, retention and an upload hook (`npm run backup`), a cron example, and an explicit migration step for upgrades (`npm run migrate`).
 - Structured JSON logs with request ids on both tiers; readable client errors for proxy-generated 413 and 502 pages; error notices show a reference id.
 - Memory limits, bounded container logs and `no-new-privileges` on every service; the engine's loopback port is not published in production.
-- Engine defaults: telemetry off, upload limit aligned at 20 MB, structured request logs, two Puma processes in production.
+- Engine defaults: telemetry off, a 20 MiB file limit, structured request logs, two Puma processes in production.
 - The owner is also the engine super admin, so installation settings and the job dashboard are reachable (console restricted to operator addresses).
-- Duplicate-send protection after gateway errors, an assignment conflict check, and reports hidden for agents (the engine restricts them to administrators).
-- GitHub Actions: typecheck, unit tests, build, configuration validation and image build on every push; nightly browser suite against the real engine; Dependabot for packages, images and actions.
+- After gateway errors, message confirmation uses an identifier persisted for that send. Unconfirmed drafts and files remain available. This confirms storage, not provider delivery or exactly-once processing; check the conversation before manually retrying an uncertain send.
+- An assignment conflict check and reports hidden for agents (the engine restricts them to administrators).
+- Migrations use a disposable container from the configured image, even while an older container exists.
+- GitHub Actions: typecheck, unit and production-runtime regressions, build, configuration validation and image build on pull requests and main pushes; nightly browser suite against the real engine; Dependabot for packages, images and actions.
 
 ## Before the first production conversation
 

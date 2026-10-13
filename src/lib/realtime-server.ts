@@ -31,6 +31,9 @@ export function assertStreamCapacity(auth: Auth) {
 }
 
 export function registerStream(auth: Auth, handle: StreamHandle) {
+  // Recheck synchronously with insertion: several requests can pass the early check before
+  // their asynchronous profile lookups complete.
+  assertStreamCapacity(auth);
   const id = key(auth);
   let group = groups.get(id);
   if (!group) {

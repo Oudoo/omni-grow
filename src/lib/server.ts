@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { getIronSession, type IronSession } from 'iron-session';
 import { NextRequest, NextResponse } from 'next/server';
 import { isIP } from 'node:net';
+import { createHash } from 'node:crypto';
 import { sameOrigin } from './policy';
 import { SESSION_ABSOLUTE_MS, sessionExpired, sessionNeedsRenewal } from './session-policy';
 import type { Profile } from './types';
@@ -36,17 +37,40 @@ export function requestReference(request?: NextRequest) {
   return id && requestIdPattern.test(id) ? id : undefined;
 }
 
-export async function session() {
+interface SessionActivity { signIn?: string; lastSeenAt?: number }
+
+async function sessionCookie<T extends object>(cookieName: string) {
   const cookieStore = await cookies();
   const password = process.env.SESSION_SECRET;
   if (!password || password.length < 32) throw new Error('SESSION_SECRET must contain at least 32 characters. Run npm run setup.');
-  return getIronSession<SessionData>(cookieStore, {
+  return getIronSession<T>(cookieStore, {
     password,
-    cookieName: 'og_session',
+    cookieName,
     ttl: SESSION_ABSOLUTE_MS / 1000,
     cookieOptions: { httpOnly: true, secure: new URL(appUrl()).protocol === 'https:', sameSite: 'lax', path: '/' },
     onUnsealError: reason => { if (reason !== 'expired') log('warn', 'session cookie rejected', { reason }); }
   });
+}
+
+// Activity may be renewed by an older in-flight request. Keep it separate from authentication
+// and workspace selection so its Set-Cookie cannot undo a switch or recreate a logged-out session.
+function signInKey(state: SessionData) {
+  return createHash('sha256').update(JSON.stringify([state.auth?.uid, state.auth?.client, state.auth?.['access-token'], state.createdAt])).digest('hex');
+}
+
+export async function session() {
+  const state = await sessionCookie<SessionData>('og_session');
+  if (state.auth && state.createdAt) {
+    const activity = await sessionCookie<SessionActivity>('og_activity');
+    if (activity.signIn === signInKey(state) && Number.isFinite(activity.lastSeenAt)) {
+      state.lastSeenAt = Math.max(state.lastSeenAt || 0, activity.lastSeenAt!);
+    }
+  }
+  return state;
+}
+
+export async function clearSessionActivity() {
+  (await sessionCookie<SessionActivity>('og_activity')).destroy();
 }
 
 export class ApiError extends Error {
@@ -65,7 +89,12 @@ export function sessionIsActive(state: SessionData): state is SessionData & Requ
 export async function requireSession(): Promise<ActiveSession> {
   const state = await session();
   if (!sessionIsActive(state)) throw new ApiError(401, 'Please sign in to OmniGrow.');
-  if (sessionNeedsRenewal(state)) { state.lastSeenAt = Date.now(); await state.save(); }
+  if (sessionNeedsRenewal(state)) {
+    const activity = await sessionCookie<SessionActivity>('og_activity');
+    activity.signIn = signInKey(state);
+    activity.lastSeenAt = state.lastSeenAt = Date.now();
+    await activity.save();
+  }
   return state as ActiveSession;
 }
 

@@ -12,7 +12,7 @@ const engineNames = [
 // Hardening defaults appended to engine configuration when absent. Operators may override any of them.
 export const engineDefaults = [
   ['DISABLE_TELEMETRY', 'true'],          // No instance metrics to the vendor hub; version checks still work.
-  ['MAXIMUM_FILE_UPLOAD_SIZE', '20'],      // Matches the 20 MB limit enforced by Caddy and the app.
+  ['MAXIMUM_FILE_UPLOAD_SIZE', '20'],      // Matches the app's 20 MiB file limit; proxies allow multipart framing.
   ['LOGRAGE_ENABLED', 'true']             // Structured request logs with request ids for correlation.
 ];
 export async function appendMissing(path, entries, composeFile = false) {

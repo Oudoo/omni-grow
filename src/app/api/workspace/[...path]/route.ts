@@ -3,6 +3,7 @@ import { ApiError, checkOrigin, engineFetch, fail, jsonBody, loadProfile, readLi
 import { allowedWorkspaceRequest, insecureOutboundUrl, redactSecrets } from '@/lib/policy';
 
 const ATTACHMENT_LIMIT = 20 * 1024 * 1024;
+const MULTIPART_LIMIT = ATTACHMENT_LIMIT + 1024 * 1024;
 type Context = { params: Promise<{ path: string[] }> };
 async function handle(request: NextRequest, context: Context) {
   try {
@@ -24,11 +25,11 @@ async function handle(request: NextRequest, context: Context) {
       const contentType = request.headers.get('content-type') || '';
       if (contentType.startsWith('multipart/form-data') && /^conversations\/[1-9]\d*\/messages$/.test(path)) {
         // Count bytes while reading so a chunked upload cannot bypass the limit, then parse the form.
-        const bytes = await readLimitedBytes(request, ATTACHMENT_LIMIT, 'Attachments must be smaller than 20 MB in total.');
+        const bytes = await readLimitedBytes(request, MULTIPART_LIMIT, 'Attachments must be no larger than 20 MB in total.');
         const form = await new Response(bytes, { headers: { 'content-type': contentType } }).formData();
         let files = 0;
         for (const value of form.values()) if (value instanceof File) files += value.size;
-        if (files > ATTACHMENT_LIMIT) throw new ApiError(413, 'Attachments must be smaller than 20 MB in total.');
+        if (files > ATTACHMENT_LIMIT) throw new ApiError(413, 'Attachments must be no larger than 20 MB in total.');
         body = form;
       } else {
         if (!contentType.startsWith('application/json')) throw new ApiError(415, 'Send this action as JSON.');

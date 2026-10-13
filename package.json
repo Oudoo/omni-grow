@@ -14,6 +14,7 @@
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
+    "test:runtime": "node tests/runtime-regressions.mjs",
     "test:e2e": "playwright test",
     "setup": "node scripts/setup.mjs",
     "migrate": "node scripts/migrate.mjs",
