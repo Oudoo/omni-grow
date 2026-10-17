@@ -36,6 +36,8 @@ try {
     assert.equal(business.access_enabled, true);
   });
   const anonymous = new Client();
+  const rejectedPassword = await anonymous.call('/api/invitations/accept', 'POST', { token: created.token, password: 'weakpassword1234' }, 422);
+  assert.match(rejectedPassword.error, /uppercase/i, 'The merged invitation validation must explain the engine password policy.');
   await anonymous.call('/api/invitations/accept', 'POST', { token: created.token, password });
   const owner = await new Client().login(`${run}-owner@example.test`, password);
   const room = await owner.call('/api/business/rooms', 'POST', { kind: 'public', name: 'Subscription acceptance', member_ids: [] }, 201);

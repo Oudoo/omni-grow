@@ -8,6 +8,10 @@ The monthly/yearly subscription endpoint first failed the real acceptance check 
 
 GPT-6 Astra found two API validation defects during review: decimal strings were parsed with Ruby's automatic base selection, and impossible dates were normalized. Both were fixed and exercised through the actual API. The final focused review reported no remaining concrete subscription finding. A registered, enabled cron schedule and actual queued worker cleanup were verified; this does not prove a one-minute disconnection guarantee during worker or SFU outages.
 
+The concurrent PR update explaining invitation password requirements was preserved. The combined source passed TypeScript, **27 unit tests**, the production build and the production inbox fault-injection regressions. Business regression coverage also passed: **9 API**, **7 browser/media**, **3 browser-onboarding** and **4 native lifecycle/realtime** workflows, plus actual TLS routing. These are targeted regressions for this increment; the complete 23-test customer-inbox browser run below belongs to the earlier business release.
+
+An isolated empty-volume restore matched all **11 business tables**, including a nonempty subscription-change ledger and paid-term record, plus native/private document bytes, Redis and repeat-restore protection. The temporary restore project and scoped business records were removed. Repeated setup loaded the final Ruby code and retained the existing owner.
+
 Collection is manual. No payment gateway, automatic card debit, tax invoice, renewal email or public deployment was exercised or implemented by this increment. The subscription record and access enforcement are real; obtaining payment remains an operator action.
 
 ## Business communications verified on 2026-10-17
