@@ -14,7 +14,7 @@ The installation owner normally has the SuperAdmin role. Sign in and open **Busi
 
 Copy the generated administrator invitation and deliver it privately to that person. Links expire after seven days, are single-use, and reserve a seat. Only a SHA-256 digest is stored. An invitation is carried in the URL fragment, which is not sent in HTTP request URLs. If the creation response was lost, the existing business is returned; use **Invite administrator** to issue a replacement link. The previous unused link is revoked.
 
-An invited new employee chooses their own password. Existing users must sign in as the invited email address; an invitation cannot change their global password or MFA. A person can belong to several businesses and switch through the account menu. A person removed from their last business can still sign in to accept a new invitation, but has no workspace access until acceptance.
+An invited new employee chooses their own password: 12 to 128 characters with an uppercase letter, a lowercase letter, a number and a standard keyboard symbol, matching the engine's password policy. The form explains the rule and shows the engine's exact validation message if a password is still rejected. Existing users must sign in as the invited email address; an invitation cannot change their global password or MFA. A person can belong to several businesses and switch through the account menu. A person removed from their last business can still sign in to accept a new invitation, but has no workspace access until acceptance.
 
 Inside each company, **Business settings** provides:
 

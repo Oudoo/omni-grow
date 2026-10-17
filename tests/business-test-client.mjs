@@ -4,13 +4,23 @@ import { unsealData } from 'iron-session';
 export const base = 'http://localhost:3000', engine = 'http://localhost:3001';
 const secret = (await readFile('.env.local', 'utf8')).match(/^SESSION_SECRET=(.+)$/m)?.[1].replace(/^['\"]|['\"]$/g, '');
 assert(secret);
+// A pooled keep-alive connection can be closed by the server at the moment the client reuses it
+// (typically after a long pause such as a Rails runner call). The request never reached the
+// application, so one retry on a fresh connection is safe and keeps the suite deterministic.
+async function send(url, init) {
+  try { return await fetch(url, init); }
+  catch (error) {
+    if (!['UND_ERR_SOCKET', 'ECONNRESET'].includes(error?.cause?.code)) throw error;
+    return await fetch(url, init);
+  }
+}
 export class Client {
   constructor() { this.cookies = new Map(); }
   async call(path, method = 'GET', data, expected = 200) {
     const headers = { Origin: base, Cookie: [...this.cookies].map(([name, value]) => `${name}=${value}`).join('; ') };
     let body;
     if (method !== 'GET') { body = data instanceof FormData ? data : JSON.stringify(data ?? {}); if (!(data instanceof FormData)) headers['Content-Type'] = 'application/json'; }
-    const response = await fetch(`${base}${path}`, { method, headers, body, redirect: 'manual', signal: AbortSignal.timeout(30000) });
+    const response = await send(`${base}${path}`, { method, headers, body, redirect: 'manual', signal: AbortSignal.timeout(30000) });
     for (const cookie of response.headers.getSetCookie()) { const [name, ...value] = cookie.split(';')[0].split('='); this.cookies.set(name, value.join('=')); }
     if (!(Array.isArray(expected) ? expected.includes(response.status) : response.status === expected)) {
       const result = await response.json().catch(() => ({}));
@@ -35,7 +45,7 @@ export class Client {
     return this;
   }
   async native(path, method = 'GET', body, expected = 200) {
-    const response = await fetch(`${engine}${path}`, { method, headers: { ...this.state.auth, 'Content-Type': 'application/json' }, ...(method === 'GET' ? {} : { body: JSON.stringify(body ?? {}) }), redirect: 'manual' });
+    const response = await send(`${engine}${path}`, { method, headers: { ...this.state.auth, 'Content-Type': 'application/json' }, ...(method === 'GET' ? {} : { body: JSON.stringify(body ?? {}) }), redirect: 'manual' });
     assert.equal(response.status, expected, `${method} native ${path}`);
     return response;
   }
