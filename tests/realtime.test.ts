@@ -8,6 +8,7 @@ function fixture(socketFailure = false) {
   let profileCalls = 0;
   class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
   const server = {
+    engineFetch: async () => new Response('{}', { status: 200 }),
     ApiError, engineUrl: () => 'http://synthetic.invalid',
     requireSession: async () => ({ auth, accountId: 1, createdAt: Date.now(), lastSeenAt: Date.now() }),
     loadProfile: async () => { profileCalls++; await gate.promise; return { id: 1, pubsub_token: 'synthetic', accounts: [{ id: 1 }] }; },

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { ApiError, engineUrl, fail, loadProfile, requireSession } from '@/lib/server';
+import { ApiError, engineFetch, engineUrl, fail, loadProfile, requireSession } from '@/lib/server';
 import { redactSecrets } from '@/lib/policy';
 import { sessionAbsoluteDeadline } from '@/lib/session-policy';
 import { assertStreamCapacity, registerStream, type EndReason } from '@/lib/realtime-server';
@@ -12,6 +12,8 @@ export async function GET(request: NextRequest) {
     assertStreamCapacity(state.auth);
     const profile = await loadProfile(state.auth, request);
     if (!profile.accounts.some(account => account.id === state.accountId) || !profile.pubsub_token) throw new ApiError(403, 'Workspace access has been revoked.');
+    const access = await engineFetch(`/api/v1/accounts/${state.accountId}/business/context`, state.auth, {}, request);
+    if (!access.ok) throw new ApiError(access.status >= 500 ? 503 : 403, 'Workspace access is unavailable.');
     const identifier = JSON.stringify({ channel: 'RoomChannel', pubsub_token: profile.pubsub_token, user_id: profile.id, account_id: state.accountId });
     const encoder = new TextEncoder();
     let stop = () => {};

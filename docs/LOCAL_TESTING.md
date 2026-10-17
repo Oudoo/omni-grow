@@ -2,7 +2,7 @@
 
 ## Start
 
-1. Install **Node.js 24 LTS** and **Docker Engine/Desktop with Compose v2**, using Linux containers. Start Docker. Allow roughly 8 GB RAM and 20 GB free disk for images, dependencies, builds, and data. This release was tested on Linux; native macOS/Windows host setup is not independently verified.
+1. Install **Node.js 24 LTS** and **Docker Engine/Desktop with Compose 2.24.4 or newer**, using Linux containers. Start Docker. Allow roughly 8 GB RAM and 20 GB free disk for local images, dependencies, builds, and data; production sizing starts higher. This release was tested on Linux; native macOS/Windows host setup is not independently verified.
 2. Clone the repository with Git into a normal writable folder:
 
    ```sh
@@ -21,7 +21,15 @@
 4. On your own computer, enter `http://localhost:3000` in your browser. Use `localhost` consistently because the login origin is bound to it. This cloud onboarding UI does not provide a browser preview.
 5. Open a second terminal in the same source folder and run `npm run local:credentials`. It prints your generated owner email and password only in an interactive terminal. Those values also live in `.local/bootstrap-credentials.json`. After changing the password, delete that file; repeat runs identify the owner through `.local/bootstrap-state.json` and never reset the password. The owner also opens the engine's installation console at `http://localhost:3001/super_admin` with the same credentials.
 
-No hosting account, domain, provider token, or paid AI API is needed for website chat and local inbox testing.
+No hosting account, domain, provider token, or paid AI API is needed for website chat, internal team communications or local calls on the same computer.
+
+## Try businesses and team communications
+
+Open **Businesses → Create business** as the installation owner. Select **Team communications** for the standalone offering or **Business** for team communications plus the customer inbox. Set the employee and storage allowances, copy the administrator invitation, and open it in a separate browser profile. The invited administrator chooses a password and signs in independently.
+
+In **Business settings**, save the company name, logo and brand color, then invite employees. Each employee accepts their own private invitation. Open **Team chat** to create company/private channels and direct conversations, send messages and documents, and start a meeting. Use two browser profiles to verify camera, microphone, screen sharing and employee permissions. Detailed behavior and limits are in [business communications](BUSINESS.md).
+
+For media testing, `localhost` works on the computer running the app. Other devices need a reachable HTTPS host and the configured media/TURN ports; a plain HTTP Wi-Fi address does not grant browser camera/microphone access. This cloud workspace is not on your Wi-Fi network.
 
 ## Try the main workflow
 
@@ -39,7 +47,7 @@ No hosting account, domain, provider token, or paid AI API is needed for website
 - **Ctrl+C** in the launcher stops the frontend. `npm run services:down` stops messaging containers without deleting their data volumes.
 - Run `npm run local` again to resume. Setup preserves existing keys, the owner identity, and customer data. `npm run local:status` checks configuration files, all required container health, the API, and free space.
 - Do not run `docker compose down -v` on your installation: that deletes volumes. Do not delete `.local` or regenerate encryption keys to fix a login problem.
-- Keep `.env.local`, `.local/engine.env`, `.local/bootstrap-state.json`, `.local/bootstrap-credentials.json`, `.local/runtime.json`, backups and snapshots private. Git and the source ZIP exclude them; each fresh installation generates its own credentials.
+- Keep `.env.local`, `.local/engine.env`, `.local/livekit.yaml`, production configuration/certificates, `.local/bootstrap-state.json`, `.local/bootstrap-credentials.json`, `.local/runtime.json`, backups and snapshots private. Git and the source ZIP exclude them; each fresh installation generates its own credentials.
 - `npm run backup` saves an online database dump and attachment archive under `.local/backups` without pausing anything. `npm run snapshot` pauses messaging briefly and saves database, attachment, and Redis state under `.local/snapshot`. Store a copy with the private files somewhere separate from the computer. See [recovery instructions](DEPLOYMENT.md).
 - The workspace sends a report-only Content Security Policy. Violations appear in the browser console and as `content security policy violation` lines in the Next.js terminal; none are expected in normal use.
 
@@ -67,6 +75,7 @@ npx playwright install chromium
 npm run build
 npm run test:runtime
 npm run test:e2e
+npm run test:business
 ```
 
-The production runtime checks use isolated synthetic failures on ports 3300/3301. The browser suite uses the real local backend, creates its own test accounts, and removes their records afterward. Repeated runs honor native login throttling and can wait up to five minutes. Linux may require Playwright’s documented browser OS dependencies. `PLAYWRIGHT_CHROMIUM_PATH` can select an existing Chromium executable. Run `npm run build` when the dev server is stopped to verify the production bundle. `npm run test:recovery` verifies an attachment-bearing snapshot in disposable local volumes; it briefly pauses messaging twice, so run it separately from the browser suite. See [validation evidence and limits](VALIDATION.md).
+The production runtime checks use isolated synthetic failures on ports 3300/3301. The browser/business suites use the real local backend, create their own test accounts, and remove their records afterward. The business suite additionally requires the running frontend, LiveKit, Docker and OpenSSL. Start `npm run start` in another terminal after building. Repeated runs honor native login throttling and can wait up to five minutes. Linux may require Playwright’s documented browser OS dependencies. `PLAYWRIGHT_CHROMIUM_PATH` can select an existing Chromium executable. Run `npm run build` when the dev server is stopped to verify the production bundle. `npm run test:recovery` verifies business records and stored attachments in disposable local volumes; it briefly pauses messaging twice, so run it separately from the browser suite. See [validation evidence and limits](VALIDATION.md).

@@ -13,6 +13,8 @@ x-engine: &engine
     - ./scripts/test-fixture.rb:/app/omnigrow-test-fixture.rb:ro
     # Rejects Twilio callbacks without a valid X-Twilio-Signature; the engine does not check it itself.
     - ./deploy/engine/zz_omnigrow_twilio_signature.rb:/app/config/initializers/zz_omnigrow_twilio_signature.rb:ro
+    - ./deploy/engine/zz_omnigrow_business.rb:/app/config/initializers/zz_omnigrow_business.rb:ro
+    - ./deploy/engine/omnigrow:/app/omnigrow:ro
   environment:
     RAILS_ENV: production
     NODE_ENV: production
@@ -26,6 +28,18 @@ x-engine: &engine
     redis: { condition: service_healthy }
 
 services:
+  meetings:
+    # LiveKit 1.9.0: a real self-hosted SFU, never a public shared demo server.
+    image: livekit/livekit-server@sha256:3602a85840d51981808d0519aefca170a3dbe3dec7bc8c5b87cbd52a503ea89f
+    user: '${OG_SERVICE_UID:-1000}:${OG_SERVICE_GID:-1000}'
+    command: ['--config', '/etc/livekit.yaml']
+    volumes: ['./.local/livekit.yaml:/etc/livekit.yaml:ro']
+    ports: ['127.0.0.1:7880:7880', '127.0.0.1:7881:7881', '127.0.0.1:7882:7882/udp']
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging: *logging
+    stop_grace_period: 30s
   storage_tools:
     image: redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
     profiles: [maintenance]

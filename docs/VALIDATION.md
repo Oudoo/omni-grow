@@ -2,6 +2,28 @@
 
 Evidence applies to this cloud instance. The reusable configuration draft is saved; it has not been published or verified in a fresh task. No public deployment has been performed.
 
+## Business communications verified on 2026-10-17
+
+The new business APIs use the actual Chatwoot/Rails engine, PostgreSQL, Redis and ActiveStorage. Meetings use the pinned LiveKit 1.9.0 server. Production features do not use simulated services or seeded customer data. Automated tests create isolated temporary businesses and deterministic browser camera/microphone inputs.
+
+| Check | Result and scope |
+| --- | --- |
+| TypeScript and production frontend | Typecheck and Next.js production build passed. |
+| Unit/configuration checks | **26 passed**, including fixed API allowlists, existing session/stream protections, reloading changed worker code when Rails was stopped, and production meeting preparation. Invalid addresses/certificates fail before configuration is written; valid certificate bytes and private file permissions are preserved; repeated preparation refuses overwrite. |
+| Real business API acceptance | **9 workflows passed**: operator-only provisioning and retry deduplication, packages, employee invitations, tenant/private-channel isolation, real messages/replies/search, protected file bytes, existing-identity protection, concurrent seat/storage enforcement and branding/last-administrator protection. |
+| Real browser and meeting acceptance | **7 workflows passed**: two-employee messaging and file downloads, persistent reply drafts, private/standalone views, mobile controls, bidirectional camera/microphone media, a second screen-share track, and disconnection after channel membership removal. Chromium supplied test media; WebRTC and the SFU were real. |
+| Browser onboarding | **3 workflows passed**: operator creates a standalone business and changes quotas; a new administrator accepts the invitation, signs in and saves a logo; a separately authenticated employee joins with limited permissions. |
+| Customer-inbox regression suite | **23 passed** against the production Next build and real engine, including website/API messages, notes and attachments, automations, tenant isolation, MFA, stream revocation, failed-send recovery and complete 12/20 MiB files. Browser sign-in tests honor the engine's Retry-After limit. |
+| Native lifecycle/realtime acceptance | **4 workflows passed**: existing WebSocket subscriptions stop delivering after package change/suspension; missing SFU rooms reconcile; native membership reassignment is rejected and removal ends calls; native suspension ends calls. Includes rejecting an unexpired token after room deletion and fresh direct conversations after rehire. |
+| TLS routing | Real HAProxy/Caddy containers passed web and TURN SNI routing, original visitor-IP preservation, console/health restrictions and private SFU administration. This used a local test certificate, not public certificate issuance or an internet TURN/media path. |
+| Recovery | An isolated empty-volume restore matched all ten business tables, native attachment bytes, a protected business document's SHA-256, Redis and repeat-restore protection. Temporary restore volumes were removed. |
+| Startup and syntax | Actual setup applied the business migrations, loaded the mounted extension and retained the owner. A subsequent setup preserved the running engine container. A newly bootstrapped owner received Business capabilities; repeating bootstrap preserved an explicitly selected Team package. Base/compact/production Compose configuration and Node/Bash/Ruby syntax passed; frontend, engine and meeting health passed. |
+| Independent review | GPT-6 Astra reviewed tenant boundaries, native administrative paths, realtime delivery, media revocation and the final startup changes. The final worker-reload finding was fixed and its regression passed; no outstanding finding remained in that review. |
+
+The production-runtime fault-injection suite also passed for the existing inbox send/upload regressions. It deliberately controls upstream failures; these test fixtures are not product backend implementations.
+
+Deployment acceptance remains necessary for the intended VPS, public DNS/trusted certificates, relay-only TURN/TLS443 calls from different physical networks, real devices, off-host recovery, production SMTP/providers and measured concurrent-call capacity. The original multi-layer engine image and full production Compose topology were not deployed in this VFS cloud; the preserved flattened images described below were used. Package assignment is real and operator-managed; automatic billing is not implemented.
+
 ## PR #1 fixes verified on 2026-10-13
 
 These checks apply to the fixes after PR head `45910915`, on Linux with Node.js 24.19.0, Next.js 16.4.0, iron-session 9.0.1 and Chromium. They establish local acceptance for the reviewed changes, not approval for live customer traffic.
@@ -69,6 +91,6 @@ Publication and restoration in a fresh cloud task remain unverified. Local recov
 - Public targets are `og.growcdx.com` and the proposed engine/callback hostname `messages.og.growcdx.com`. Hosting/server selection, DNS, public HTTPS, SMTP, and authorized channel credentials remain necessary. DNS lookups here failed and did not establish the domains' actual records. No DNS change, server deployment, or external-channel activation was performed.
 - Website/custom-API messaging was exercised. WhatsApp, Telegram, Facebook, Instagram, email, Twilio SMS, and LINE have real setup flows but delivery remains unverified without provider credentials. The current runtime proxy denied a Telegram connectivity probe; provider domains were added to the saved draft, which does not change runtime access until the configuration is applied/published.
 - Strict Safari storage behavior, custom Shadow DOM isolation, database-lock response guarantees, crash recovery, and the research brief's full fault-tolerance requirements are not verified. The native widget uses an iframe. Ordinary Chatwoot account webhooks are signed but are not automatically retried; application logout/account changes close its live relay, and cross-instance/native membership revocation is bounded by profile revalidation rather than guaranteed instantaneous.
-- Standalone visual bot building, trained RAG, WebRTC calling, billing, and the remainder of the broader research brief are not implemented as independent OmniGrow products. Native engine administration and an external bot endpoint are available; see [architecture and scope](ARCHITECTURE.md).
+- Native business chat, protected documents and WebRTC meetings are implemented in this release. Standalone visual bot building, trained RAG, automatic billing and the remainder of the broader research brief are not implemented as independent OmniGrow products. Native engine administration and an external bot endpoint are available; see [architecture and scope](ARCHITECTURE.md).
 
 The repository includes the source, infrastructure helpers, tests, and documentation for the local release. Private configuration, credentials, snapshots, and test output are ignored by Git and excluded from Docker build context. Each fresh installation generates its own private credentials and encryption keys.

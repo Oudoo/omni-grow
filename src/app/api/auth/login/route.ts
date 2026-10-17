@@ -34,17 +34,17 @@ export async function POST(request: NextRequest) {
     }
     const token = response.headers.get('access-token'), client = response.headers.get('client'), uid = response.headers.get('uid');
     const profile = data.data as Profile;
-    if (!token || !client || !uid || !profile?.accounts?.length) throw new ApiError(403, 'This account requires additional verification or has no active workspace.');
+    if (!token || !client || !uid || !profile?.id || !Array.isArray(profile.accounts)) throw new ApiError(403, 'This account requires additional verification.');
     const account = profile.accounts.find(a => a.id === profile.account_id) || profile.accounts[0];
     const now = Date.now();
     delete state.pendingMfa;
     state.auth = { 'access-token': token, client, uid };
-    state.profile = { ...publicProfile(profile, account.id), pubsub_token: profile.pubsub_token };
-    state.accountId = account.id;
+    state.profile = { ...publicProfile(profile, account?.id || 0), pubsub_token: profile.pubsub_token };
+    if (account) state.accountId = account.id; else delete state.accountId;
     state.createdAt = now;
     state.lastSeenAt = now;
     await saveSession(state);
     await clearSessionActivity();
-    return NextResponse.json(publicProfile(profile, account.id));
+    return NextResponse.json({ ...publicProfile(profile, account?.id || 0), noWorkspace: !account });
   } catch (error) { return fail(error, request); }
 }

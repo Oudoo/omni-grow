@@ -18,6 +18,9 @@ unless user
   end
 end
 raise 'Owner has no workspace membership' if user.accounts.empty?
+# The initial installation is ready to test both inbox and team capabilities.
+# Existing operator-selected packages are never changed by repeated setup.
+user.accounts.find_each { |account| OmniGrow::Business.find_or_create_by!(account_id: account.id) { |business| business.plan = 'business' } }
 # The installation owner also administers the engine itself (installation settings, feature flags,
 # the job dashboard) through the native /super_admin console, with the same credentials. Passwords
 # are never changed here.

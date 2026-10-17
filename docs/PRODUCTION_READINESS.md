@@ -1,6 +1,14 @@
 # Production readiness
 
-Status after the hardening release on this branch. The engine is Chatwoot 4.18.0 pinned by its tag digest; the workspace is Next.js 16.4.0. The changes below still require acceptance on the intended host and with real providers before live customer traffic. Local tests alone do not establish production readiness.
+Status after the business communications release on this branch. The engine is Chatwoot 4.18.0 pinned by its tag digest; the workspace is Next.js 16.4.0 and meetings use self-hosted LiveKit 1.9.0. The changes below require acceptance on the intended Linux VPS and with real providers before live customer traffic. Local tests alone do not establish production readiness. See [current verification evidence](VALIDATION.md) and [business administration](BUSINESS.md).
+
+## Business communications
+
+- Independent business accounts, company branding, employee invitations and roles, operator-managed packages and seat/storage allowances.
+- Persistent public/private company channels, direct messages, replies, history/search, drafts and protected documents. Downloads and realtime deliveries recheck current tenant/channel permissions.
+- Real microphone, camera and screen sharing through LiveKit. Membership removal, suspension and package removal end affected meetings; short-lived admission tokens cannot recreate deleted rooms.
+- Standalone Team and combined Business packages are enforced by the backend as well as the UI. Provisioning is manual; automatic subscription billing is not included.
+- Linux Compose configuration provides HTTPS signaling and TURN with TLS routing on port 443. Public certificate issuance, relay-only calls across different physical networks, and production call capacity still need deployment acceptance.
 
 ## What the hardening release changed
 
@@ -37,21 +45,21 @@ Reliability and operations
 
 ## Before the first production conversation
 
-1. Prepare and review `.local/production.env`, `.local/app.production.env`, `.local/engine.production.env` (`docs/DEPLOYMENT.md`). Set `OG_MONITOR_IPS` and `OG_ADMIN_IPS`.
-2. Point DNS, open 80/443, build and start the production overlay, confirm certificates.
+1. Prepare and review the private app/engine/meeting configuration and TURN certificate material ([deployment instructions](DEPLOYMENT.md)). Set `OG_MONITOR_IPS` and `OG_ADMIN_IPS`.
+2. Point all four DNS names, open the documented TCP/UDP ports, build and start the production overlay, and confirm certificates and relay-only meeting connectivity.
 3. Sign in as the owner, change the email and password, delete `.local/bootstrap-credentials.json`.
-4. Configure transactional SMTP; invitations and password resets do not work without it.
+4. Configure transactional SMTP for password resets and native engine emails. Business invitations use private, manually shared links and do not require SMTP.
 5. Install the backup cron with an encrypted off-host destination and run one restore drill on a scratch host.
 6. Connect channels with real provider credentials and complete the external acceptance checklist in `docs/CHANNELS.md`, including the unsigned-callback checks.
 7. Run the workspace in CSP report-only mode for a day, then set `CSP_MODE=enforce`.
 8. Point an uptime monitor at `/api/health` from the configured address and ship logs somewhere with retention; add `SENTRY_DSN` if you use Sentry.
-9. Load test with your expected number of concurrent agents; the repository's own measurements cover 2,000 idle connections and one active conversation, not a busy team.
+9. Load test with your expected number of concurrent agents and active calls; the repository's earlier measurements cover 2,000 idle messaging connections and one active conversation, not a busy team or meeting capacity.
 
 ## Known limits that remain
 
-- The native engine UI and API stay reachable on the messaging hostname with the same credentials; the workspace allowlist is a product boundary, not a security boundary.
+- The native engine UI and API stay reachable on the messaging hostname with the same credentials. Team package restrictions, employee quotas and lifecycle protections are enforced in the engine; access does not rely solely on the frontend allowlist.
 - Telegram callbacks are authenticated only by the bot token in the path; the engine does not support Telegram's `secret_token` header.
-- Attachment type and size are validated by the engine only for website-widget uploads; there is no malware scanning. Object storage with private objects is recommended for production.
+- Business uploads have server-side size/quota enforcement and authenticated downloads, but there is no malware scanning. General customer-inbox attachment type validation varies by native channel. Object storage with private objects is recommended for production.
 - The engine stores the WhatsApp access token and app secret unencrypted in `provider_config`; database dumps must be encrypted.
 - Account webhooks are not retried by the engine; consumers need idempotency and monitoring.
 - The engine's sign-in throttle is five attempts per five minutes per address; shared office addresses may need `RACK_ATTACK_ALLOWED_IPS`.

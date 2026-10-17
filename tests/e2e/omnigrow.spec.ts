@@ -33,11 +33,29 @@ test.beforeAll(async ({ playwright }) => {
 });
 test.afterEach(() => closeRealtimeStreams());
 test.afterAll(async () => { await Promise.all([apiA?.dispose(), apiB?.dispose(), apiAgent?.dispose()]); });
+async function submitLogin(page: Page) {
+  const signIn = async () => {
+    const [response] = await Promise.all([
+      page.waitForResponse(response => response.url().endsWith('/api/auth/login') && response.request().method() === 'POST'),
+      page.getByRole('button', { name: 'Sign in to your workspace' }).click()
+    ]);
+    return response;
+  };
+  const response = await signIn();
+  if (response.status() === 429) {
+    test.setTimeout(720000);
+    console.log('Honoring Retry-After before the real browser sign-in.');
+    let remaining = Math.min(600, (Number(response.headers()['retry-after']) || 300) + 1) * 1000;
+    while (remaining > 0) { const duration = Math.min(30000, remaining); await new Promise(resolve => setTimeout(resolve, duration)); remaining -= duration; }
+    const retried = await signIn(); expect(retried.status()).toBe(200); return retried;
+  }
+  expect(response.status()).toBe(200); return response;
+}
 async function login(page: Page) {
   await page.goto('/login');
   await page.getByLabel('Email address').fill(fixture.users[0].email);
   await page.getByLabel('Password', { exact: true }).fill(fixture.users[0].password);
-  await page.getByRole('button', { name: 'Sign in to your workspace' }).click();
+  await submitLogin(page);
   await expect(page).toHaveURL(/\/inbox$/);
 }
 async function useExistingSession(page: Page) {
@@ -621,19 +639,19 @@ test('hardening: request ids, security policy, health probe, session limits, and
     accountId: 1, createdAt: Date.now() - 25 * 60 * 60 * 1000, lastSeenAt: Date.now()
   }, { password: process.env.SESSION_SECRET!, ttl: 48 * 60 * 60 });
   expect((await request.get('/api/auth/me', { headers: { Cookie: `og_session=${stale}` } })).status()).toBe(401);
-  // Agents are told that account reports are administrator-only instead of seeing an error.
+  // The previous case revoked this employee. A sealed stale role must not
+  // render workspace content while fresh membership authorization is pending.
   await page.context().addCookies((await apiAgent.storageState()).cookies);
   await page.goto('/reports');
-  await expect(page.getByText('Reports are available to workspace administrators')).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
 });
 
 test('verifies MFA in the branded login without exposing its challenge token', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Email address').fill(fixture.mfa.email);
   await page.getByLabel('Password', { exact: true }).fill(fixture.mfa.password);
-  const challenge = page.waitForResponse(response => response.url().endsWith('/api/auth/login'));
-  await page.getByRole('button', { name: 'Sign in to your workspace' }).click();
-  expect(await (await challenge).json()).toEqual({ mfaRequired: true });
+  const challenge = await submitLogin(page);
+  expect(await challenge.json()).toEqual({ mfaRequired: true });
   expect((await page.request.get('/api/workspace/inboxes')).status()).toBe(401);
   await page.getByRole('button', { name: 'Use a recovery code' }).click();
   await page.getByLabel('Recovery code', { exact: true }).fill(fixture.mfa.backup_code);

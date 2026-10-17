@@ -1,5 +1,5 @@
 import 'server-only';
-import { ApiError, loadProfile, log, type SessionData } from './server';
+import { ApiError, engineFetch, loadProfile, log, type SessionData } from './server';
 
 export type EndReason = 'logout' | 'account-switch' | 'revoked';
 type Auth = NonNullable<SessionData['auth']>;
@@ -57,8 +57,15 @@ async function authorize(group: Group, id: string) {
     for (const handle of [...group.handles]) if (now > handle.expiresAt) handle.revoke('revoked');
     if (!group.handles.size) return;
     const profile = await loadProfile(group.auth);
+    const active = new Set<number>();
+    for (const accountId of new Set([...group.handles].map(handle => handle.accountId))) {
+      if (!profile.accounts.some(account => account.id === accountId)) continue;
+      const response = await engineFetch(`/api/v1/accounts/${accountId}/business/context`, group.auth);
+      if (response.ok) active.add(accountId);
+      else if (![401, 403, 404].includes(response.status)) throw new ApiError(503, 'Workspace access could not be checked.');
+    }
     for (const handle of [...group.handles]) {
-      if (!profile.accounts.some(account => account.id === handle.accountId)) handle.revoke('revoked');
+      if (!active.has(handle.accountId)) handle.revoke('revoked');
     }
   } catch (error) {
     if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {

@@ -1,7 +1,8 @@
 'use client';
 import { useCallback, useSyncExternalStore } from 'react';
 
-interface Draft { text: string; files: File[]; missingFiles: string[]; sending: boolean }
+interface DraftReply { id: number; name: string; content: string }
+interface Draft { replyTo?: DraftReply; text: string; files: File[]; missingFiles: string[]; sending: boolean; clientId?: string; fingerprint?: string }
 type Change<T> = T | ((previous: T) => T);
 const empty: Draft = { text: '', files: [], missingFiles: [], sending: false };
 const prefix = 'omnigrow:draft:';
@@ -13,7 +14,7 @@ function read(key: string): Draft {
   try {
     const saved = JSON.parse(sessionStorage.getItem(key) || 'null');
     if (saved && Date.now() - saved.updatedAt < 8 * 60 * 60 * 1000 && typeof saved.text === 'string') {
-      draft = { text: saved.text, files: [], missingFiles: Array.isArray(saved.fileNames) ? saved.fileNames.filter((name: unknown) => typeof name === 'string') : [], sending: false };
+      draft = { text: saved.text, files: [], missingFiles: Array.isArray(saved.fileNames) ? saved.fileNames.filter((name: unknown) => typeof name === 'string') : [], sending: false, replyTo: saved.replyTo && Number.isSafeInteger(saved.replyTo.id) && typeof saved.replyTo.name === 'string' && typeof saved.replyTo.content === 'string' ? saved.replyTo : undefined, clientId: typeof saved.clientId === 'string' ? saved.clientId : undefined, fingerprint: typeof saved.fingerprint === 'string' ? saved.fingerprint : undefined };
     }
   } catch { /* Storage may be disabled. In-memory drafts still work. */ }
   drafts.set(key, draft);
@@ -22,13 +23,13 @@ function read(key: string): Draft {
 function write(key: string, draft: Draft) {
   drafts.set(key, draft);
   try {
-    if (!draft.text && !draft.files.length && !draft.missingFiles.length) sessionStorage.removeItem(key);
-    else sessionStorage.setItem(key, JSON.stringify({ text: draft.text, fileNames: [...draft.files.map(file => file.name), ...draft.missingFiles], updatedAt: Date.now() }));
+    if (!draft.text && !draft.files.length && !draft.missingFiles.length && !draft.replyTo && !draft.clientId) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, JSON.stringify({ text: draft.text, fileNames: [...draft.files.map(file => file.name), ...draft.missingFiles], updatedAt: Date.now(), replyTo: draft.replyTo, clientId: draft.clientId, fingerprint: draft.fingerprint }));
   } catch { /* Keep the current draft in memory when storage is unavailable. */ }
   for (const notify of listeners) notify();
 }
 function update<T>(change: Change<T>, current: T) { return typeof change === 'function' ? (change as (value: T) => T)(current) : change; }
-export function useConversationDraft(user: number, account: number, conversation: number, mode: 'reply' | 'note') {
+export function useConversationDraft(user: number, account: number, conversation: number, mode: 'reply' | 'note' | 'team') {
   const key = `${prefix}${user}:${account}:${conversation}:${mode}`;
   const subscribe = useCallback((notify: () => void) => { listeners.add(notify); return () => { listeners.delete(notify); }; }, []);
   const snapshot = useCallback(() => read(key), [key]);
@@ -50,7 +51,16 @@ export function useConversationDraft(user: number, account: number, conversation
     return true;
   }, [key]);
   const endSend = useCallback(() => write(key, { ...read(key), sending: false }), [key]);
-  return { ...draft, setText, setFiles, discardMissing, beginSend, endSend };
+  const attemptId = useCallback((fingerprint: string) => {
+    const old = read(key);
+    if (old.clientId && old.fingerprint === fingerprint) return old.clientId;
+    const clientId = crypto.randomUUID();
+    write(key, { ...old, clientId, fingerprint });
+    return clientId;
+  }, [key]);
+  const setReplyTo = useCallback((replyTo?: DraftReply) => write(key, { ...read(key), replyTo }), [key]);
+  const clearAttempt = useCallback(() => write(key, { ...read(key), clientId: undefined, fingerprint: undefined }), [key]);
+  return { ...draft, setText, setFiles, discardMissing, beginSend, endSend, attemptId, clearAttempt, setReplyTo };
 }
 export function clearConversationDrafts() {
   drafts.clear();

@@ -1,10 +1,11 @@
-import { randomBytes } from 'node:crypto';
-import { mkdir, readFile, writeFile, access } from 'node:fs/promises';
+import { createHash, randomBytes } from 'node:crypto';
+import { mkdir, readFile, writeFile, access, readdir } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { restoreSnapshot, assertNoInterruptedRestore } from './restore-snapshot.mjs';
 import { configureProviders } from './provider-env.mjs';
 import { composeArgs, compactMode, docker, engineServices } from './docker.mjs';
+import { configureMeetings } from './meetings-config.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 process.chdir(root);
@@ -32,6 +33,7 @@ if (!hasBootstrapState && !await exists('.local/bootstrap-credentials.json')) {
   }, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
 }
 await configureProviders();
+await configureMeetings();
 if (!await exists('.local/runtime.json') && process.env.OG_PRODUCTION !== '1') {
   const driver = await docker(['info', '--format', '{{.Driver}}'], { capture: true });
   await writeFile('.local/runtime.json', JSON.stringify({ compact: process.env.OG_COMPACT === '1' || (process.env.OG_COMPACT !== '0' && driver === 'vfs') }) + '\n', { mode: 0o600, flag: 'wx' });
@@ -57,9 +59,14 @@ if (runningRails) {
   const actual = await docker(['inspect', '--format', '{{.Image}}', runningRails], { capture: true });
   try { currentImage = actual === await docker(['image', 'inspect', '--format', '{{.Id}}', desired], { capture: true, quiet: true }); }
   catch { /* The configured image has not been pulled yet; the one-shot container will pull it. */ }
+  if (currentImage) {
+    try { await docker(['exec', runningRails, 'test', '-f', '/app/omnigrow/migrate.rb'], { quiet: true }); }
+    catch { currentImage = false; }
+  }
 }
 const runner = currentImage ? ['exec', '-T', 'rails'] : ['run', '--rm', '--no-deps', '-T', 'rails'];
 await run([...runner, 'bundle', 'exec', 'rails', 'db:chatwoot_prepare']);
+await run([...runner, 'bundle', 'exec', 'rails', 'runner', '/app/omnigrow/migrate.rb']);
 const credentials = {};
 if (await exists('.local/bootstrap-credentials.json')) Object.assign(credentials, JSON.parse(await readFile('.local/bootstrap-credentials.json', 'utf8')));
 if (hasBootstrapState) Object.assign(credentials, JSON.parse(await readFile('.local/bootstrap-state.json', 'utf8')));
@@ -88,6 +95,19 @@ if (compactMode()) {
   }
 }
 await run(['up', '-d', '--wait', '--wait-timeout', '180', ...engineServices()]);
+await run(['up', '-d', 'meetings']);
+// Mounted Ruby source is cached by production Rails/Sidekiq. An upgrade must
+// reload the processes even when the pinned upstream image is unchanged.
+const extensionFiles = (await readdir('deploy/engine', { recursive: true })).filter(name => name.endsWith('.rb')).sort();
+const hash = createHash('sha256');
+for (const file of extensionFiles) { hash.update(file); hash.update(await readFile(`deploy/engine/${file}`)); }
+const extensionVersion = hash.digest('hex');
+const previousExtension = await readFile('.local/engine-extension-version', 'utf8').catch(() => '');
+if (previousExtension.trim() !== extensionVersion) {
+  await run(['restart', ...engineServices()]);
+  await run(['up', '-d', '--wait', '--wait-timeout', '180', ...engineServices()]);
+}
+await writeFile('.local/engine-extension-version', extensionVersion + '\n', { mode: 0o600 });
 if (desiredCompactHash) {
   const id = (await run(['ps', '-q', 'rails'], { capture: true })).trim();
   const actual = await docker(['inspect', '--format', '{{index .Config.Labels "com.docker.compose.config-hash"}}', id], { capture: true });
@@ -98,8 +118,13 @@ const deadline = Date.now() + 180_000;
 let ready = false;
 while (Date.now() < deadline) {
   try {
+    if (process.env.OG_PRODUCTION === '1') {
+      await run(['exec', '-T', 'rails', 'ruby', '-rnet/http', '-e', 'h=Net::HTTP.new("meetings",7880,nil); h.open_timeout=3; h.read_timeout=3; exit(h.get("/").code == "200" ? 0 : 1)'], { capture: true });
+      ready = true; break;
+    }
     const response = await fetch('http://127.0.0.1:3001/api', { signal: AbortSignal.timeout(5000) });
-    if (response.ok) { ready = true; break; }
+    const media = await fetch('http://127.0.0.1:7880/', { signal: AbortSignal.timeout(5000) });
+    if (response.ok && media.ok) { ready = true; break; }
   } catch { /* Backend is still starting. */ }
   await new Promise(resolve => setTimeout(resolve, 2000));
 }

@@ -5,9 +5,9 @@ import { compose } from './docker.mjs';
 import { sha256 } from './files.mjs';
 
 // Online backup: a consistent PostgreSQL dump plus an archive of attachment storage, with SHA-256
-// checksums, local retention and an optional upload hook. No service is stopped. Attachments are
-// immutable blobs, so the archive is complete for every message committed before the dump began;
-// `npm run snapshot` remains the fully consistent (paused) alternative for migrations.
+// checksums, local retention and an optional upload hook. No service is stopped.
+// Concurrent file deletion can race this online archive; use `npm run snapshot`
+// when database/attachment consistency is required (including release backups).
 process.chdir(fileURLToPath(new URL('..', import.meta.url)));
 const keep = Number(process.env.OG_BACKUP_KEEP || 14);
 if (!Number.isInteger(keep) || keep < 1 || keep > 365) throw new Error('OG_BACKUP_KEEP must be a whole number of backups between 1 and 365.');

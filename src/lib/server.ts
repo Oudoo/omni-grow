@@ -85,6 +85,12 @@ export function sessionIsActive(state: SessionData): state is SessionData & Requ
   return !!(state.auth && state.profile && state.accountId) && !sessionExpired(state);
 }
 
+// An employee without a current membership may still prove ownership of their
+// global identity to accept an invitation. This never authorizes workspace APIs.
+export function identityIsActive(state: SessionData) {
+  return !!(state.auth && state.profile) && !sessionExpired(state);
+}
+
 // Route handlers only: renewing writes the cookie, which Server Components cannot do.
 export async function requireSession(): Promise<ActiveSession> {
   const state = await session();

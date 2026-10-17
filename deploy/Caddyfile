@@ -2,6 +2,21 @@
 # every request with an id that the app logs and forwards to the messaging engine.
 # Validate changes with: caddy validate --config deploy/Caddyfile --adapter caddyfile
 
+{
+	servers :443 {
+		listener_wrappers {
+			# Only the private SNI router reaches this TCP listener. Preserve
+			# the visitor's IP for sign-in throttles and console restrictions.
+			proxy_protocol {
+				timeout 5s
+				allow 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+				fallback_policy reject
+			}
+			tls
+		}
+	}
+}
+
 (hardening) {
 	header Strict-Transport-Security "max-age=31536000"
 	header -Server
@@ -70,5 +85,18 @@
 		reverse_proxy rails:3000 {
 			header_up X-Request-ID {http.request.uuid}
 		}
+	}
+}
+
+{$OG_MEETINGS_HOST} {
+	import hardening
+	# Only signaling is public here. The SFU administrative API and webhook
+	# delivery stay on the private Docker network.
+	@signaling path /rtc /rtc/*
+	handle @signaling {
+		reverse_proxy meetings:7880
+	}
+	handle {
+		respond 404
 	}
 }

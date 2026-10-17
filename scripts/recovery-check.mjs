@@ -38,21 +38,37 @@ try {
   assert(Number.isSafeInteger(blob.id) && blob.id > 0 && /^[a-zA-Z0-9]+$/.test(blob.key) && blob.path.startsWith('/app/storage/') && !blob.path.includes('..'));
   await compose(['exec', '-T', 'redis', 'sh', '-c', 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli SET "$1" "$2"', '--', redisKey, identity], { capture: true });
   const expectedCounts = await query(compose, countsSQL);
+  const businessTables = ['og_businesses', 'og_invitations', 'og_rooms', 'og_room_members', 'og_messages', 'og_documents', 'og_reads', 'og_meetings', 'og_audits', 'og_schema_migrations'];
+  const businessHashes = new Map();
+  for (const table of businessTables) {
+    // Table names are a fixed list, never CLI/user input. Compare all stored
+    // values without printing employee details or invitation digests.
+    const sql = `SELECT md5(COALESCE(string_agg(row_to_json(t)::text, '' ORDER BY row_to_json(t)::text), '')) FROM ${table} t`;
+    businessHashes.set(sql, await query(compose, sql));
+  }
+  const businessFile = JSON.parse(await query(compose, "SELECT COALESCE((SELECT json_build_object('key',b.key,'checksum',d.checksum) FROM og_documents d JOIN active_storage_attachments a ON a.record_id=d.id AND a.record_type='OmniGrow::Document' AND a.name='file' JOIN active_storage_blobs b ON b.id=a.blob_id ORDER BY d.id LIMIT 1),'null'::json)"));
   await snapshot();
   await isolated(['up', '-d', '--wait', '--wait-timeout', '120', 'postgres', 'redis']);
   process.env.OG_COMPOSE_PROJECT = project;
   try { assert.equal(await restoreSnapshot(), true); }
   finally { delete process.env.OG_COMPOSE_PROJECT; }
   assert.equal(await query(isolated, countsSQL), expectedCounts, 'Restored database record counts must match the source.');
+  for (const [sql, expected] of businessHashes) assert.equal(await query(isolated, sql), expected, 'Business identities, permissions, messages, documents, invitations and audit records must restore exactly.');
   assert.equal(await query(isolated, `SELECT key FROM active_storage_blobs WHERE id=${blob.id}`), blob.key);
   const fileHash = await isolated(['run', '--rm', '--no-deps', '--entrypoint', 'sha256sum', 'storage_tools', blob.path.replace('/app/storage/', '/data/')], { capture: true, quiet: true });
   assert.equal(fileHash.split(/\s+/)[0], createHash('sha256').update(content).digest('hex'), 'Native attachment bytes must restore exactly.');
+  if (businessFile) {
+    assert(/^[a-zA-Z0-9]+$/.test(businessFile.key));
+    const key = businessFile.key;
+    const hash = await isolated(['run', '--rm', '--no-deps', '--entrypoint', 'sha256sum', 'storage_tools', `/data/${key.slice(0, 2)}/${key.slice(2, 4)}/${key}`], { capture: true, quiet: true });
+    assert.equal(hash.split(/\s+/)[0], businessFile.checksum, 'A real protected business document must restore byte-for-byte.');
+  }
   const restoredKey = await isolated(['exec', '-T', 'redis', 'sh', '-c', 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli GET "$1"', '--', redisKey], { capture: true });
   assert.equal(restoredKey, identity, 'Redis state must restore.');
   process.env.OG_COMPOSE_PROJECT = project;
   try { assert.equal(await restoreSnapshot(), false, 'A repeat restore must retain an existing database.'); }
   finally { delete process.env.OG_COMPOSE_PROJECT; }
-  console.log('PASS isolated recovery: database, native attachment bytes, Redis, and repeat-restore protection.');
+  console.log(`PASS isolated recovery: database, all business records, native attachment bytes${businessFile ? ', private business document bytes' : ''}, Redis, and repeat-restore protection.`);
 } finally {
   delete process.env.OG_COMPOSE_PROJECT;
   await isolated(['down', '-v']); // Only the randomly named project created above.
