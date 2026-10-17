@@ -7,7 +7,8 @@ export function Empty({ title, text, action }: { title: string; text: string; ac
 }
 export function ErrorNotice({ error, retry }: { error?: Error; retry?: () => void }) {
   if (!error) return null;
-  return <div className="alert error" role="alert">{error.message}{retry && <button className="text-button" onClick={retry}>Retry</button>}</div>;
+  const reference = (error as { reference?: string }).reference;
+  return <div className="alert error" role="alert">{error.message}{reference && <small className="error-reference"> Reference {reference}</small>}{retry && <button className="text-button" onClick={retry}>Retry</button>}</div>;
 }
 export function Modal({ title, children, close, busy = false }: { title: string; children: React.ReactNode; close: () => void; busy?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);

@@ -1,0 +1,16 @@
+# Example schedule for the Docker host. Install with:
+#   sudo install -m 0644 deploy/omnigrow-backup.cron /etc/cron.d/omnigrow-backup
+# Adjust the user, the checkout path and the upload command. The upload command receives the backup
+# directory as $1; restic encrypts by default. Store the restic key with the engine encryption keys
+# (.local/engine.env) in a separate secret store, never on this host alone.
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+OG_PRODUCTION=1
+OG_BACKUP_KEEP=14
+# OG_BACKUP_UPLOAD=restic -r s3:s3.example.com/omnigrow-backups backup "$1" .local/engine.env .local/engine.production.env .local/app.production.env .local/bootstrap-state.json
+
+# Nightly online backup (no downtime): database dump + attachment archive + checksums + retention.
+15 2 * * * deploy cd /opt/omni-grow && npm run backup >> .local/backup.log 2>&1
+
+# Weekly consistent snapshot in a maintenance window (pauses messaging briefly).
+30 3 * * 0 deploy cd /opt/omni-grow && npm run snapshot >> .local/backup.log 2>&1

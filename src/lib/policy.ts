@@ -47,3 +47,18 @@ export function safeExternalUrl(value: string | undefined) {
   if (!value) return undefined;
   try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) ? url.href : undefined; } catch { return undefined; }
 }
+// Endpoints the engine will call back (account webhooks, agent bots, API-channel reply webhooks)
+// must use HTTPS. The engine itself accepts http://; the browser form pattern alone is not a control.
+export function insecureOutboundUrl(path: string, method: string, body: Record<string, unknown>): string | undefined {
+  if (method === 'GET') return undefined;
+  const check = (value: unknown, label: string) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    try { const url = new URL(String(value)); if (url.protocol === 'https:' && url.hostname) return undefined; } catch { /* reported below */ }
+    return `${label} must be an https:// URL.`;
+  };
+  const nested = (key: string) => (typeof body[key] === 'object' && body[key] !== null ? body[key] as Record<string, unknown> : {});
+  if (/^webhooks(\/[1-9]\d*)?$/.test(path)) return check(nested('webhook').url ?? body.url, 'The webhook endpoint');
+  if (/^agent_bots(\/[1-9]\d*)?$/.test(path)) return check(body.outgoing_url, 'The bot endpoint');
+  if (/^inboxes(\/[1-9]\d*)?$/.test(path)) return check(nested('channel').webhook_url, 'The reply webhook');
+  return undefined;
+}

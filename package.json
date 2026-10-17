@@ -2,7 +2,9 @@
   "name": "omnigrow",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "local": "node scripts/local.mjs",
     "local:status": "node scripts/doctor.mjs",
@@ -12,8 +14,13 @@
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
+    "test:runtime": "node tests/runtime-regressions.mjs",
     "test:e2e": "playwright test",
+    "test:business": "node tests/business-run.mjs",
+    "test:subscriptions": "node tests/subscriptions.mjs",
+    "meetings:renew-certificate": "node scripts/renew-meeting-certificate.mjs",
     "setup": "node scripts/setup.mjs",
+    "migrate": "node scripts/migrate.mjs",
     "services:up": "node scripts/services.mjs up",
     "services:down": "node scripts/services.mjs down",
     "backup": "node scripts/backup.mjs",
@@ -24,19 +31,21 @@
     "test:load": "node scripts/load.mjs"
   },
   "dependencies": {
-    "@rails/actioncable": "8.0.200",
-    "iron-session": "8.0.4",
+    "@livekit/components-react": "2.9.24",
+    "@livekit/components-styles": "1.2.0",
+    "iron-session": "^9.0.1",
+    "livekit-client": "2.23.0",
     "lucide-react": "^0.468.0",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "swr": "^2.3.6",
+    "tslib": "2.8.1",
     "zod": "^4.1.12"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
     "@types/node": "^24.0.0",
-    "@types/rails__actioncable": "8.0.3",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "tsx": "^4.20.6",

@@ -1,0 +1,13 @@
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { validatedCertificate, installMeetingCertificate } from './meeting-production.mjs';
+import { compose } from './docker.mjs';
+process.chdir(fileURLToPath(new URL('..', import.meta.url)));
+const env = await readFile('.local/production.env', 'utf8');
+const host = env.match(/^OG_TURN_HOST=(.+)$/m)?.[1];
+if (!host || !process.env.OG_TURN_CERT_FILE || !process.env.OG_TURN_KEY_FILE) throw new Error('Set OG_TURN_CERT_FILE and OG_TURN_KEY_FILE for this installation’s TURN hostname.');
+const bundle = await validatedCertificate(host, process.env.OG_TURN_CERT_FILE, process.env.OG_TURN_KEY_FILE);
+await installMeetingCertificate(bundle);
+process.env.OG_PRODUCTION = '1';
+await compose(['restart', 'meetings']);
+console.log('Meeting certificate renewed and the media service restarted. Active meetings must reconnect.');

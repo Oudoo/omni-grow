@@ -1,21 +1,102 @@
+# Public edge for OmniGrow. Caddy terminates TLS, replaces client-identifying headers, and tags
+# every request with an id that the app logs and forwards to the messaging engine.
+# Validate changes with: caddy validate --config deploy/Caddyfile --adapter caddyfile
+
+{
+	servers :443 {
+		listener_wrappers {
+			# Only the private SNI router reaches this TCP listener. Preserve
+			# the visitor's IP for sign-in throttles and console restrictions.
+			proxy_protocol {
+				timeout 5s
+				allow 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+				fallback_policy reject
+			}
+			tls
+		}
+	}
+}
+
+(hardening) {
+	header Strict-Transport-Security "max-age=31536000"
+	header -Server
+	request_body {
+		# Allow multipart framing around the app/engine's 20 MiB file limit.
+		max_size 25MB
+	}
+	# Compress text and JSON only. Live event streams (text/event-stream) are left untouched.
+	encode zstd gzip {
+		match {
+			header Content-Type text/html*
+			header Content-Type text/css*
+			header Content-Type text/plain*
+			header Content-Type text/javascript*
+			header Content-Type text/xml*
+			header Content-Type application/json*
+			header Content-Type application/javascript*
+			header Content-Type application/xml*
+			header Content-Type application/manifest+json*
+			header Content-Type image/svg+xml*
+			header Content-Type font/*
+		}
+	}
+}
+
 {$OG_APP_HOST} {
-  encode zstd gzip
-  header Strict-Transport-Security "max-age=31536000"
-  request_body {
-    max_size 20MB
-  }
-  # Caddy replaces incoming X-Forwarded-For and identifies the actual client.
-  reverse_proxy app:3000 {
-    header_up X-Real-IP {remote_host}
-  }
+	import hardening
+
+	# Health probes from outside the host are limited to the monitoring address, because each probe
+	# costs an engine request. Docker's own HEALTHCHECK reaches the app directly and is unaffected.
+	# Caddy evaluates `respond` before `reverse_proxy`, so the refusal carries the negated matcher.
+	@health path /api/health
+	handle @health {
+		@outsider not remote_ip {$OG_MONITOR_IPS:127.0.0.1}
+		respond @outsider 404
+		reverse_proxy app:3000 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Request-ID {http.request.uuid}
+		}
+	}
+
+	handle {
+		# Caddy replaces incoming X-Forwarded-For and identifies the actual client.
+		reverse_proxy app:3000 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Request-ID {http.request.uuid}
+		}
+	}
 }
 
 {$OG_MESSAGING_HOST} {
-  encode zstd gzip
-  header Strict-Transport-Security "max-age=31536000"
-  request_body {
-    max_size 20MB
-  }
-  # WebSocket upgrades and provider callbacks reach the same messaging engine.
-  reverse_proxy rails:3000
+	import hardening
+
+	# The engine's installation console and job dashboard are for operators only.
+	@console path /super_admin* /monitoring*
+	handle @console {
+		@outsider not remote_ip {$OG_ADMIN_IPS:127.0.0.1}
+		respond @outsider 404
+		reverse_proxy rails:3000 {
+			header_up X-Request-ID {http.request.uuid}
+		}
+	}
+
+	handle {
+		# WebSocket upgrades, the widget and provider callbacks reach the same messaging engine.
+		reverse_proxy rails:3000 {
+			header_up X-Request-ID {http.request.uuid}
+		}
+	}
+}
+
+{$OG_MEETINGS_HOST} {
+	import hardening
+	# Only signaling is public here. The SFU administrative API and webhook
+	# delivery stay on the private Docker network.
+	@signaling path /rtc /rtc/*
+	handle @signaling {
+		reverse_proxy meetings:7880
+	}
+	handle {
+		respond 404
+	}
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { allowedWorkspaceRequest, redactSecrets, safeExternalUrl, sameOrigin } from '../src/lib/policy';
+import { allowedWorkspaceRequest, insecureOutboundUrl, redactSecrets, safeExternalUrl, sameOrigin } from '../src/lib/policy';
 
 test('allows supported conversation operations and denies cross-account or arbitrary proxy paths', () => {
   assert.equal(allowedWorkspaceRequest('conversations/12/messages', 'POST'), true);
@@ -16,11 +16,23 @@ test('requires an exact origin for cookie-authenticated writes', () => {
   for (const origin of [null, 'null', 'https://og.example.com.evil.test', 'http://og.example.com', 'https://evil.test', 'not-a-url']) assert.equal(sameOrigin(origin, 'https://og.example.com'), false);
 });
 test('redacts secrets recursively without removing the public widget token', () => {
-  const response = { payload: [{ website_token: 'public-widget-id', bot_token: 'secret', provider_config: { api_key: 'secret' }, imap_password: 'secret', channel: { access_token: 'secret', hmac_token: 'secret', name: 'support' } }], access_token: 'secret', pubsub_token: 'secret', line_channel_token: 'secret', line_channel_secret: 'secret', omniauth_token: 'secret', user_access_token: 'secret', page_access_token: 'secret' };
+  const response = { payload: [{ website_token: 'public-widget-id', bot_token: 'secret', provider_config: { api_key: 'secret', app_secret: 'secret' }, imap_password: 'secret', channel: { access_token: 'secret', hmac_token: 'secret', name: 'support' } }], access_token: 'secret', pubsub_token: 'secret', line_channel_token: 'secret', line_channel_secret: 'secret', omniauth_token: 'secret', user_access_token: 'secret', page_access_token: 'secret' };
   assert.deepEqual(redactSecrets(response), { payload: [{ website_token: 'public-widget-id', channel: { name: 'support' } }] });
   assert.equal(JSON.stringify(redactSecrets(response)).includes('secret'), false);
 });
 test('attachment links accept only HTTP and HTTPS URLs', () => {
   assert.equal(safeExternalUrl('https://files.example.com/image.png'), 'https://files.example.com/image.png');
   for (const value of ['javascript:alert(1)', 'data:text/html,test', 'file:///etc/passwd', '//evil.test', 'not-a-url', undefined]) assert.equal(safeExternalUrl(value), undefined);
+});
+test('endpoints the engine calls back must use HTTPS', () => {
+  assert.equal(insecureOutboundUrl('webhooks', 'POST', { webhook: { url: 'https://crm.example.com/events' } }), undefined);
+  assert.match(insecureOutboundUrl('webhooks', 'POST', { webhook: { url: 'http://crm.example.com/events' } }) || '', /https/);
+  assert.match(insecureOutboundUrl('webhooks/3', 'PATCH', { url: 'ftp://crm.example.com' }) || '', /https/);
+  assert.match(insecureOutboundUrl('agent_bots', 'POST', { outgoing_url: 'http://bot.example.com' }) || '', /https/);
+  assert.equal(insecureOutboundUrl('agent_bots', 'POST', { outgoing_url: 'https://bot.example.com' }), undefined);
+  assert.match(insecureOutboundUrl('inboxes', 'POST', { channel: { type: 'api', webhook_url: 'http://reply.example.com' } }) || '', /https/);
+  assert.equal(insecureOutboundUrl('inboxes', 'POST', { channel: { type: 'web_widget', website_url: 'http://localhost:3000' } }), undefined, 'website_url is a display attribute, not a callback');
+  assert.equal(insecureOutboundUrl('inboxes/5', 'PATCH', { name: 'renamed' }), undefined);
+  assert.equal(insecureOutboundUrl('webhooks', 'GET', {}), undefined);
+  assert.equal(insecureOutboundUrl('contacts', 'POST', { url: 'http://example.com' }), undefined, 'only callback endpoints are checked');
 });

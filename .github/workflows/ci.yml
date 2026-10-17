@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, unit tests, build, configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+      - run: npx playwright install --with-deps chromium
+      - name: Verify production uploads and failed-send draft preservation
+        run: npm run test:runtime
+      - name: Syntax-check helper scripts
+        run: |
+          for file in scripts/*.mjs; do node --check "$file"; done
+          bash -n scripts/*.sh
+          for file in deploy/engine/*.rb deploy/engine/omnigrow/*.rb deploy/engine/omnigrow/migrations/*.rb; do ruby -c "$file"; done
+      - name: Validate Compose files
+        run: |
+          mkdir -p .local
+          touch .local/engine.env .local/engine.production.env .local/app.production.env
+          printf 'OG_APP_HOST=og.example.com\nOG_MESSAGING_HOST=messages.example.com\nOG_MEETINGS_HOST=meet.example.com\nOG_TURN_HOST=turn.example.com\n' > .local/production.env
+          docker compose -f compose.yaml config --quiet
+          docker compose -f compose.yaml -f compose.compact.yaml config --quiet
+          docker compose --env-file .local/production.env -f compose.yaml -f compose.production.yaml config --quiet
+      - name: Validate Caddyfile
+        run: |
+          docker run --rm -e OG_APP_HOST=og.example.com -e OG_MESSAGING_HOST=messages.example.com -e OG_MEETINGS_HOST=meet.example.com \
+            -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: Validate TLS routing and original client IP with real proxy containers
+        run: node tests/business-edge.mjs
+
+  image:
+    name: Build the production image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build (not pushed)
+        run: docker build --build-arg NEXT_PUBLIC_ENGINE_URL=https://messages.example.com .

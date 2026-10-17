@@ -1,22 +1,45 @@
 name: omnigrow
+# Bounded container logs: unbounded json-file logs are the quickest way to fill a disk.
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "50m", max-file: "5" }
 x-engine: &engine
-  image: chatwoot/chatwoot@sha256:a4b7eea7353a9b585d0f29f2c57c7549710db961b119f7f1561b2fe964f48f65
+  # Chatwoot v4.18.0 (tag digest; see docs/ARCHITECTURE.md for the upgrade procedure).
+  image: chatwoot/chatwoot@sha256:b419dded7e9d2f54a24fd427b74ba7e6069d601b500618045c1eb6c01a1cc9a1
   env_file: .local/engine.env
   volumes:
     - storage:/app/storage
     - ./scripts/bootstrap.rb:/app/omnigrow-bootstrap.rb:ro
     - ./scripts/test-fixture.rb:/app/omnigrow-test-fixture.rb:ro
+    # Rejects Twilio callbacks without a valid X-Twilio-Signature; the engine does not check it itself.
+    - ./deploy/engine/zz_omnigrow_twilio_signature.rb:/app/config/initializers/zz_omnigrow_twilio_signature.rb:ro
+    - ./deploy/engine/zz_omnigrow_business.rb:/app/config/initializers/zz_omnigrow_business.rb:ro
+    - ./deploy/engine/omnigrow:/app/omnigrow:ro
   environment:
     RAILS_ENV: production
     NODE_ENV: production
     INSTALLATION_ENV: docker
   restart: unless-stopped
   stop_grace_period: 45s
+  security_opt: [no-new-privileges:true]
+  logging: *logging
   depends_on:
     postgres: { condition: service_healthy }
     redis: { condition: service_healthy }
 
 services:
+  meetings:
+    # LiveKit 1.9.0: a real self-hosted SFU, never a public shared demo server.
+    image: livekit/livekit-server@sha256:3602a85840d51981808d0519aefca170a3dbe3dec7bc8c5b87cbd52a503ea89f
+    user: '${OG_SERVICE_UID:-1000}:${OG_SERVICE_GID:-1000}'
+    command: ['--config', '/etc/livekit.yaml']
+    volumes: ['./.local/livekit.yaml:/etc/livekit.yaml:ro']
+    ports: ['127.0.0.1:7880:7880', '127.0.0.1:7881:7881', '127.0.0.1:7882:7882/udp']
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging: *logging
+    stop_grace_period: 30s
   storage_tools:
     image: redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
     profiles: [maintenance]
@@ -24,11 +47,14 @@ services:
     volumes: [storage:/data]
     network_mode: none
     read_only: true
+    logging: *logging
   postgres:
     image: pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
     env_file: .local/engine.env
     volumes: [postgres:/var/lib/postgresql/data]
     restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    logging: *logging
     healthcheck:
       test: [CMD-SHELL, "pg_isready -U postgres -d chatwoot"]
       interval: 5s
@@ -40,6 +66,8 @@ services:
     command: [sh, -c, 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
     volumes: [redis:/data]
     restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    logging: *logging
     healthcheck:
       test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
       interval: 5s
@@ -49,6 +77,7 @@ services:
     <<: *engine
     entrypoint: docker/entrypoints/rails.sh
     command: [bundle, exec, rails, s, -p, '3000', -b, 0.0.0.0]
+    # Loopback only, for the local app and tests. The production overlay removes this publish.
     ports: ["127.0.0.1:3001:3000"]
     healthcheck:
       test: [CMD-SHELL, "ruby -rnet/http -e 'exit(Net::HTTP.new(\"127.0.0.1\",3000,nil).get(\"/api\").code == \"200\" ? 0 : 1)'"]

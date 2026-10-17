@@ -1,9 +1,45 @@
 # Run together with compose.yaml using --env-file .local/production.env.
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "50m", max-file: "5" }
 services:
+  tls_router:
+    # HAProxy 3.2 LTS; TLS stays encrypted through the SNI router.
+    image: haproxy@sha256:254e6370f01cd654e0744edf607c67f33777c1b6a9dc0d4b28bcba7171460122
+    user: '${OG_SERVICE_UID:-1000}:${OG_SERVICE_GID:-1000}'
+    ports: ['443:8443']
+    environment:
+      OG_TURN_HOST: ${OG_TURN_HOST:?Set OG_TURN_HOST}
+    volumes: ['./deploy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro']
+    depends_on: [proxy, meetings]
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    read_only: true
+    logging: *logging
+    deploy: { resources: { limits: { memory: 256M } } }
+  meetings:
+    volumes: !override
+      - ./.local/livekit.production.yaml:/etc/livekit.yaml:ro
+      - ./.local/turn-certs:/etc/omnigrow-turn:ro
+    ports: !override
+      - '7881:7881/tcp'
+      - '7882:7882/udp'
+      - '3478:3478/udp'
+      - '50000-50199:50000-50199/udp'
+    deploy: { resources: { limits: { memory: 2G } } }
   rails:
     env_file: .local/engine.production.env
+    # Nothing but Caddy reaches the engine in production.
+    ports: !reset []
+    deploy: { resources: { limits: { memory: 2G } } }
   worker:
     env_file: .local/engine.production.env
+    deploy: { resources: { limits: { memory: 2G } } }
+  postgres:
+    deploy: { resources: { limits: { memory: 2G } } }
+  redis:
+    deploy: { resources: { limits: { memory: 512M } } }
   app:
     build:
       context: .
@@ -21,18 +57,31 @@ services:
     depends_on:
       rails: { condition: service_healthy }
     restart: unless-stopped
+    # Long enough to end live event streams and finish in-flight requests (src/instrumentation.ts).
+    stop_grace_period: 20s
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging: *logging
+    deploy: { resources: { limits: { memory: 512M } } }
   proxy:
     image: caddy@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
-    ports: ['80:80', '443:443', '443:443/udp']
+    ports: ['80:80', '443:443/udp']
     environment:
       OG_APP_HOST: ${OG_APP_HOST:?Set OG_APP_HOST}
       OG_MESSAGING_HOST: ${OG_MESSAGING_HOST:?Set OG_MESSAGING_HOST}
+      OG_MEETINGS_HOST: ${OG_MEETINGS_HOST:?Set OG_MEETINGS_HOST}
+      # One IP or CIDR each. Defaults admit nobody from outside the host.
+      OG_MONITOR_IPS: ${OG_MONITOR_IPS:-127.0.0.1}
+      OG_ADMIN_IPS: ${OG_ADMIN_IPS:-127.0.0.1}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    depends_on: [app, rails]
+    depends_on: [app, rails, meetings]
     restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    logging: *logging
+    deploy: { resources: { limits: { memory: 256M } } }
 volumes:
   caddy_data:
   caddy_config:

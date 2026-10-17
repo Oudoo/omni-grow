@@ -1,0 +1,57 @@
+name: End-to-end
+
+# Boots the real messaging engine and runs the browser suite. Scheduled nightly because the first
+# run pulls the pinned engine image and migrates a fresh database; run it on demand before releases.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Start the messaging engine and provision the owner
+        run: npm run setup
+      - name: Build and start the production frontend locally
+        run: |
+          npm run build
+          nohup npm run start >.local/frontend.log 2>&1 </dev/null &
+          for attempt in {1..60}; do curl --fail --silent http://localhost:3000/api/health && break; sleep 1; done
+          curl --fail http://localhost:3000/api/health
+      - name: Run the browser suite against the real engine
+        run: npm run test:e2e
+      - name: Verify tenancy, documents, realtime revocation and real meeting media
+        run: npm run test:business
+      - name: Verify hosted subscriptions, renewal and expiry against real services
+        run: npm run test:subscriptions
+      - name: Retain secret-free business verification results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: business-verification
+          path: |
+            .local/business-*-results.json
+            .local/subscription-results.json
+          retention-days: 7
+      - name: Negative provider webhook checks are part of the suite; keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+      - name: Stop services
+        if: always()
+        run: npm run services:down

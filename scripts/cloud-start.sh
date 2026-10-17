@@ -3,6 +3,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 npm run setup
 if ! curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null; then
+  # Development server for the cloud sandbox only. Production runs the standalone image built by the Dockerfile.
   nohup npm run dev >.local/frontend.log 2>&1 </dev/null &
   printf '%s\n' "$!" >.local/frontend.pid
 fi
