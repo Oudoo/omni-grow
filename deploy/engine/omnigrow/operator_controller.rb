@@ -90,8 +90,10 @@ module OmniGrow
     rescue_from OmniGrow::Error do |error|
       render json: { error: error.message }, status: error.status
     end
-    rescue_from ActiveRecord::RecordInvalid do
-      render json: { error: 'These account details could not be accepted. Check your name and password.' }, status: :unprocessable_entity
+    rescue_from ActiveRecord::RecordInvalid do |error|
+      # Devise's password policy messages name the missing character type or the rejected
+      # character so the person who typed the password can correct it; nothing else is echoed.
+      render json: { error: error.record.errors.full_messages.join('. ').truncate(400) }, status: :unprocessable_entity
     end
     before_action :find_invitation
     def preview

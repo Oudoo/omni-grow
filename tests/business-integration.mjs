@@ -39,6 +39,8 @@ try {
   await check('single-use invitations, real employee sign-in and current roles', async () => {
     await anon.call('/api/invitations/accept', 'POST', { token: alpha.token, password }, 410);
     invitation = await ownerA.call('/api/business/invitations', 'POST', { name: 'Alpha employee', email: `${run}-employee@example.test`, role: 'agent' }, 201);
+    const weak = await anon.call('/api/invitations/accept', 'POST', { token: invitation.token, password: 'weakpassword1234' }, 422);
+    assert.match(weak.error, /uppercase/i, 'A rejected password must explain the engine policy to the invited employee.');
     await anon.call('/api/invitations/accept', 'POST', { token: invitation.token, password });
     memberA = await new Client().login(`${run}-employee@example.test`, password);
     const other = await ownerA.call('/api/business/invitations', 'POST', { name: 'Alpha outsider', email: `${run}-outsider@example.test`, role: 'agent' }, 201);
