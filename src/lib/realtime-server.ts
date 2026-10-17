@@ -61,7 +61,11 @@ async function authorize(group: Group, id: string) {
     for (const accountId of new Set([...group.handles].map(handle => handle.accountId))) {
       if (!profile.accounts.some(account => account.id === accountId)) continue;
       const response = await engineFetch(`/api/v1/accounts/${accountId}/business/context`, group.auth);
-      if (response.ok) active.add(accountId);
+      if (response.ok) {
+        if ((await response.json()).business?.access_enabled === false) {
+          for (const handle of [...group.handles]) if (handle.accountId === accountId) handle.stop();
+        } else active.add(accountId);
+      }
       else if (![401, 403, 404].includes(response.status)) throw new ApiError(503, 'Workspace access could not be checked.');
     }
     for (const handle of [...group.handles]) {

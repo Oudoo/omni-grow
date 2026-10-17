@@ -1,6 +1,6 @@
 const id = '[1-9]\\d*';
 const rules: [RegExp, string[]][] = [
-  [/^context$/, ['GET']], [/^branding$/, ['PATCH']], [/^logo$/, ['GET']],
+  [/^context$/, ['GET']], [/^branding$/, ['PATCH']], [/^logo$/, ['GET']], [/^subscription$/, ['GET']],
   [/^members$/, ['GET']], [new RegExp(`^members/${id}$`), ['PATCH', 'DELETE']],
   [/^invitations$/, ['POST']], [new RegExp(`^invitations/${id}$`), ['DELETE']], [/^audit$/, ['GET']],
   [/^rooms$/, ['GET', 'POST']], [new RegExp(`^rooms/${id}$`), ['GET', 'PATCH']],
@@ -19,5 +19,6 @@ export function allowedBusinessRequest(path: string, method: string) {
 export function allowedOperatorRequest(path: string, method: string) {
   return (path === 'businesses' && ['GET', 'POST'].includes(method)) ||
     (new RegExp(`^businesses/${id}$`).test(path) && method === 'PATCH') ||
-    (new RegExp(`^businesses/${id}/invitations$`).test(path) && method === 'POST');
+    (new RegExp(`^businesses/${id}/invitations$`).test(path) && method === 'POST') ||
+    (new RegExp(`^businesses/${id}/subscription$`).test(path) && ['GET', 'POST'].includes(method));
 }

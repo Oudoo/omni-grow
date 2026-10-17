@@ -11,7 +11,7 @@ if input.fetch('action') == 'create'
   AccountUser.create!(account: account, user: user, role: :administrator)
   OmniGrow::Business.create!(account: account, plan: 'business')
   puts "OG_BUSINESS_FIXTURE:#{JSON.generate({ run: run, operator: { id: user.id, email: user.email, password: password }, account_id: account.id })}"
-elsif %w[native_remove native_suspend native_reassign stale_meeting probe_event expire_invitation].include?(input['action'])
+elsif %w[native_remove native_suspend native_reassign stale_meeting probe_event expire_invitation expire_subscription subscription_calendar].include?(input['action'])
   account = Account.find(input.fetch('account_id'))
   raise 'Fixture account scope required' unless account.name.start_with?("OG business test #{run}")
   case input['action']
@@ -39,6 +39,29 @@ elsif %w[native_remove native_suspend native_reassign stale_meeting probe_event 
     ActionCable.server.broadcast(user.pubsub_token, { event: 'message.created', data: { account_id: account.id, content: input.fetch('sentinel') } })
   when 'expire_invitation'
     OmniGrow::Invitation.where(account_id: account.id).find(input.fetch('invitation_id')).update!(expires_at: 1.minute.ago)
+  when 'expire_subscription'
+    job = Sidekiq::Cron::Job.find('omnigrow_subscription_expiry')
+    raise 'Subscription expiry schedule missing' unless job && job.status == 'enabled'
+    business = OmniGrow::Business.find_by!(account_id: account.id)
+    business.update!(subscription_interval: 'monthly', subscription_state: 'enabled', subscription_anchor_at: 2.months.ago,
+                     subscription_cycles: 1, subscription_paid_through: 1.second.ago, subscription_grace_days: 0)
+    OmniGrow::SubscriptionExpiryJob.perform_later
+  when 'subscription_calendar'
+    # Exercise the actual term arithmetic and boundary predicates; no global
+    # clock is changed for the running application or other test accounts.
+    business = OmniGrow::Business.find_by!(account_id: account.id)
+    anchor = Time.utc(2028, 1, 31, 12, 0, 0)
+    raise 'Month-end anchor lost' unless OmniGrow::Subscriptions.end_of_term(anchor, 'monthly', 1) == Time.utc(2028, 2, 29, 12, 0, 0)
+    raise 'Renewal anchor drifted' unless OmniGrow::Subscriptions.end_of_term(anchor, 'monthly', 2) == Time.utc(2028, 3, 31, 12, 0, 0)
+    leap = Time.utc(2028, 2, 29, 12, 0, 0)
+    raise 'Annual leap handling failed' unless OmniGrow::Subscriptions.end_of_term(leap, 'yearly', 1) == Time.utc(2029, 2, 28, 12, 0, 0)
+    raise 'Annual anchor drifted' unless OmniGrow::Subscriptions.end_of_term(leap, 'yearly', 4) == Time.utc(2032, 2, 29, 12, 0, 0)
+    business.assign_attributes(subscription_interval: 'monthly', subscription_state: 'enabled', subscription_anchor_at: anchor,
+                               subscription_paid_through: OmniGrow::Subscriptions.end_of_term(anchor, 'monthly', 1), subscription_grace_days: 2)
+    raise 'Future access granted' unless business.subscription_status(anchor - 1) == 'scheduled'
+    raise 'Start boundary failed' unless business.subscription_status(anchor) == 'active'
+    raise 'Grace boundary failed' unless business.subscription_status(business.subscription_paid_through) == 'grace'
+    raise 'Expiry boundary failed' unless business.subscription_status(business.subscription_access_until) == 'expired'
   end
   puts 'OG_BUSINESS_FIXTURE_ACTION_OK'
 elsif input['action'] == 'cleanup'

@@ -11,7 +11,7 @@ module OmniGrow
       scope = Business.includes(:account).order(account_id: :desc)
       scope = scope.where('account_id < ?', params[:before].to_i) if params[:before].present?
       list = scope.limit(100).to_a
-      render json: { businesses: list.map(&:payload), has_more: list.length == 100 }
+      render json: { businesses: list.map { |business| business.payload(financial: true) }, has_more: list.length == 100 }
     end
     def create
       business, invitation, token = nil
@@ -36,7 +36,7 @@ module OmniGrow
           Audit.record(account, current_user, 'business.created', { plan: business.plan })
         end
       end
-      render json: { business: business.payload, invitation: invitation&.public_payload, token: token, replayed: invitation.nil? }, status: :created
+      render json: { business: business.payload(financial: true), invitation: invitation&.public_payload, token: token, replayed: invitation.nil? }, status: :created
     end
     def update
       business = Business.find_by!(account_id: params[:id])
@@ -53,7 +53,16 @@ module OmniGrow
         business.account.update!(status: status)
         Audit.record(business.account, current_user, 'business.package_updated', { plan: business.plan, status: status, seat_limit: business.seat_limit, storage_limit_bytes: business.storage_limit_bytes })
       end
-      render json: business.payload
+      render json: business.payload(financial: true)
+    end
+    def subscription
+      business = Business.find_by!(account_id: params[:id])
+      changes = SubscriptionChange.where(account_id: business.account_id).order(id: :desc).limit(50)
+      render json: { business: business.payload(financial: true), changes: changes.map(&:payload) }
+    end
+    def change_subscription
+      business = Business.find_by!(account_id: params[:id])
+      render json: Subscriptions.apply!(business, current_user, params.permit(:operation, :interval, :starts_at, :amount_minor, :currency, :grace_days, :reference, :version, :client_id))
     end
     def invite
       business = Business.find_by!(account_id: params[:id])

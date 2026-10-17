@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
     if (!profile.accounts.some(account => account.id === state.accountId) || !profile.pubsub_token) throw new ApiError(403, 'Workspace access has been revoked.');
     const access = await engineFetch(`/api/v1/accounts/${state.accountId}/business/context`, state.auth, {}, request);
     if (!access.ok) throw new ApiError(access.status >= 500 ? 503 : 403, 'Workspace access is unavailable.');
+    if ((await access.json()).business?.access_enabled === false) throw new ApiError(403, 'This business subscription is inactive.');
     const identifier = JSON.stringify({ channel: 'RoomChannel', pubsub_token: profile.pubsub_token, user_id: profile.id, account_id: state.accountId });
     const encoder = new TextEncoder();
     let stop = () => {};

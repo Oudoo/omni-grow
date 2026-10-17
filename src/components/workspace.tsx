@@ -17,6 +17,7 @@ import { Loading } from './ui';
 import type { BusinessContext } from '@/lib/business-types';
 import { BusinessSettings } from './business-settings';
 import { BusinessOperator } from './business-operator';
+import { SubscriptionRequired } from './business-subscription';
 import { TeamChat } from './team-chat';
 
 const navigation = [
@@ -38,7 +39,7 @@ export function Workspace({ section, initialProfile }: { section: string; initia
   const accountName = context?.business.name || account.name || 'Workspace';
   const admin = account.role === 'administrator';
   const visibleNavigation = navigation.filter(item => item.id === 'team' ? context?.business.team_enabled : item.id === 'operator' ? context?.operator : item.id === 'business' ? !!context : context?.business.inbox_enabled !== false && (item.id !== 'reports' || admin));
-  useEffect(() => { if (context && !context.business.inbox_enabled && ['inbox', 'contacts', 'channels', 'automation', 'reports', 'settings'].includes(section)) window.location.replace('/team'); }, [context, section]);
+  useEffect(() => { if (context?.business.access_enabled && !context.business.inbox_enabled && ['inbox', 'contacts', 'channels', 'automation', 'reports', 'settings'].includes(section)) window.location.replace('/team'); }, [context, section]);
   useEffect(() => { if (error?.status === 401 || error?.status === 403) { clearConversationDrafts(); window.location.assign('/login'); } }, [error]);
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
@@ -59,10 +60,10 @@ export function Workspace({ section, initialProfile }: { section: string; initia
     <main className="workspace-main"><header className="topbar"><div className="breadcrumb">Workspace<ChevronRight size={14} /><strong>{navigation.find(n => n.id === section)?.label || 'Settings'}</strong></div><div className="topbar-right"><span className="workspace-badge"><span />{accountName}</span><span className="topbar-symbol"><Command size={15} /> OG</span></div><button className="icon-button mobile-account-toggle" aria-label="Account menu" onClick={() => setAccountMenu(true)}><span className="avatar small-avatar">{initials(profile.name)}</span></button></header>
       {(actionError || contextError) && <ErrorNotice error={actionError || contextError} retry={() => refreshContext()} />}
       <div className={section === 'inbox' ? 'inbox-page' : section === 'team' ? 'team-page' : 'standard-page'} key={profile.account_id}>
-        {!context && !contextError && <Loading />}
-        {!contextError && context?.business.inbox_enabled && <>{section === 'inbox' && <InboxView profile={profile} />}{section === 'channels' && <Channels profile={profile} />}{section === 'contacts' && <Contacts />}{section === 'reports' && (admin ? <Reports /> : <Empty title="Reports are available to workspace administrators" text="Ask an administrator for a summary or the administrator role." />)}{section === 'automation' && <AutomationView />}{section === 'settings' && <SettingsView profile={profile} />}</>}
-        {!contextError && context && section === 'team' && (context.business.team_enabled ? <TeamChat profile={profile} context={context} /> : <Empty title="Team communications is available with Team or Business" text="Contact your service operator to enable team chat, shared documents and meetings for this business." />)}
-        {context && section === 'business' && <BusinessSettings context={context} refresh={() => { void refreshContext(); }} />}
+        {!context && !contextError && <Loading />}{!contextError && context && !context.business.access_enabled && section !== 'operator' && <SubscriptionRequired business={context.business} />}{context?.business.access_enabled && context.business.subscription.status === 'grace' && <p className="alert subscription-grace" role="status">Your subscription is in its grace period. Contact your service provider to renew before {new Date(context.business.subscription.access_until!).toLocaleString()}.</p>}
+        {!contextError && context?.business.access_enabled && context.business.inbox_enabled && <>{section === 'inbox' && <InboxView profile={profile} />}{section === 'channels' && <Channels profile={profile} />}{section === 'contacts' && <Contacts />}{section === 'reports' && (admin ? <Reports /> : <Empty title="Reports are available to workspace administrators" text="Ask an administrator for a summary or the administrator role." />)}{section === 'automation' && <AutomationView />}{section === 'settings' && <SettingsView profile={profile} />}</>}
+        {!contextError && context?.business.access_enabled && section === 'team' && (context.business.team_enabled ? <TeamChat profile={profile} context={context} /> : <Empty title="Team communications is available with Team or Business" text="Contact your service operator to enable team chat, shared documents and meetings for this business." />)}
+        {context?.business.access_enabled && section === 'business' && <BusinessSettings context={context} refresh={() => { void refreshContext(); }} />}
         {context && section === 'operator' && (context.operator ? <BusinessOperator /> : <Empty title="Operator access is required" text="Business administrators manage their employees and profile in Business settings." />)}
       </div>
     </main>

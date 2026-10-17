@@ -1,7 +1,7 @@
 module OmniGrow
   class BusinessController < Api::V1::Accounts::BaseController
     before_action :business_context
-    before_action :require_team, except: %i[context branding logo members invite revoke_invite update_member remove_member audit]
+    before_action :require_team, except: %i[context branding logo members invite revoke_invite update_member remove_member audit subscription]
     rescue_from OmniGrow::Error, with: :business_error
     rescue_from ActiveRecord::RecordNotFound do
       render json: { error: 'This item is unavailable in your business.' }, status: :not_found
@@ -14,7 +14,11 @@ module OmniGrow
     end
 
     def context
-      render json: { business: @business.payload, administrator: administrator?, operator: current_user.is_a?(SuperAdmin), meetings_configured: Meetings.configured? }
+      render json: { business: @business.payload(financial: administrator?), administrator: administrator?, operator: current_user.is_a?(SuperAdmin), meetings_configured: Meetings.configured? }
+    end
+    def subscription
+      admin!
+      render json: { subscription: @business.subscription_payload(financial: true) }
     end
     def branding
       admin!
@@ -318,6 +322,7 @@ module OmniGrow
         Current.account.reload
         Current.account_user = Current.account.account_users.find_by(user_id: current_user.id)
         raise Error.new('Your business access has been revoked.', 403) unless Current.account.active? && Current.account_user
+        @business.require_subscription!
         admin! if %w[branding invite revoke_invite update_member remove_member].include?(action_name)
         require_team unless %w[branding invite revoke_invite update_member remove_member].include?(action_name)
         if room
@@ -331,6 +336,7 @@ module OmniGrow
     def business_context
       raise Error.new('Employee sign-in is required.', 403) unless current_user.is_a?(User) && Current.account_user
       @business = Business.find_or_create_by!(account_id: Current.account.id)
+      @business.require_subscription! unless %w[context logo subscription].include?(action_name)
       response.headers['Cache-Control'] = 'private, no-store'
       response.headers['X-Content-Type-Options'] = 'nosniff'
     end

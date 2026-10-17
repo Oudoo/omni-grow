@@ -8,10 +8,15 @@ test('business proxy accepts only its fixed account-relative API surface', () =>
   assert.equal(allowedBusinessRequest('documents/3/content', 'POST'), false);
   assert.equal(allowedBusinessRequest('rooms/3/meetings/9/join', 'GET'), false);
   assert.equal(allowedBusinessRequest('context', 'PATCH'), false);
+  assert.equal(allowedBusinessRequest('subscription', 'GET'), true);
+  assert.equal(allowedBusinessRequest('subscription', 'POST'), false);
 });
 test('operator proxy exposes provisioning and packages without a tenant data proxy', () => {
   assert.equal(allowedOperatorRequest('businesses', 'POST'), true);
   assert.equal(allowedOperatorRequest('businesses/2/invitations', 'POST'), true);
+  assert.equal(allowedOperatorRequest('businesses/2/subscription', 'POST'), true);
+  assert.equal(allowedOperatorRequest('businesses/2/subscription', 'GET'), true);
+  assert.equal(allowedOperatorRequest('businesses/2/subscription', 'DELETE'), false);
   for (const path of ['businesses/2/documents', 'accounts/2/conversations', 'businesses/2/users/1/password', 'businesses/2/../1']) assert.equal(allowedOperatorRequest(path, 'GET'), false);
   assert.equal(allowedOperatorRequest('businesses/2', 'DELETE'), false);
 });

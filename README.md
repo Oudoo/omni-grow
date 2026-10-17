@@ -6,6 +6,8 @@ The workspace includes a responsive inbox, channel setup, contacts, reports, sav
 
 **Businesses** lets the installation operator provision customers with standalone **Team communications**, **Customer inbox**, or the combined **Business** package. Team communications includes private/public channels, direct messages, persistent document sharing and real audio/video/screen-sharing meetings. See the [business onboarding and testing guide](docs/BUSINESS.md).
 
+For a VPS-hosted service, each business can have a monthly or yearly subscription, or open-ended access. The operator records payments, renews terms, sets prices and grace periods, and ends access. Expired terms restrict employee access while retaining company data. Payment collection is manual; automatic card billing requires a payment-provider integration.
+
 ## Test locally
 
 Install Node.js 24 LTS, Git, and Docker Engine/Desktop with Compose v2. Start Docker, then clone the repository and launch the app:
@@ -34,6 +36,7 @@ npm run typecheck
 npm test
 npm run test:e2e
 npm run test:business
+npm run test:subscriptions
 npm run build
 npm run test:load
 ```

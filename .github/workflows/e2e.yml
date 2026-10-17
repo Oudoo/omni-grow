@@ -34,12 +34,16 @@ jobs:
         run: npm run test:e2e
       - name: Verify tenancy, documents, realtime revocation and real meeting media
         run: npm run test:business
+      - name: Verify hosted subscriptions, renewal and expiry against real services
+        run: npm run test:subscriptions
       - name: Retain secret-free business verification results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: business-verification
-          path: .local/business-*-results.json
+          path: |
+            .local/business-*-results.json
+            .local/subscription-results.json
           retention-days: 7
       - name: Negative provider webhook checks are part of the suite; keep the report
         if: always()

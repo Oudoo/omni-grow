@@ -2,6 +2,14 @@
 
 Evidence applies to this cloud instance. The reusable configuration draft is saved; it has not been published or verified in a fresh task. No public deployment has been performed.
 
+## Hosted subscriptions verified on 2026-10-17
+
+The monthly/yearly subscription endpoint first failed the real acceptance check with HTTP 404 before implementation. The new migration was applied to the actual database, and all **9 subscription workflows passed** against the production frontend, real engine/database/worker and LiveKit: activation, operator authorization, duplicate-payment/concurrent-retry protection, stale-edit rejection, calendar/numeric validation, future activation, expiry with established-call disconnection and native-event filtering, renewal with retained documents/independent suspension, and yearly pricing/cancellation in the browser. Month-end, leap-year and exact grace boundaries are checked using the real term calculations without changing the application clock.
+
+GPT-6 Astra found two API validation defects during review: decimal strings were parsed with Ruby's automatic base selection, and impossible dates were normalized. Both were fixed and exercised through the actual API. The final focused review reported no remaining concrete subscription finding. A registered, enabled cron schedule and actual queued worker cleanup were verified; this does not prove a one-minute disconnection guarantee during worker or SFU outages.
+
+Collection is manual. No payment gateway, automatic card debit, tax invoice, renewal email or public deployment was exercised or implemented by this increment. The subscription record and access enforcement are real; obtaining payment remains an operator action.
+
 ## Business communications verified on 2026-10-17
 
 The new business APIs use the actual Chatwoot/Rails engine, PostgreSQL, Redis and ActiveStorage. Meetings use the pinned LiveKit 1.9.0 server. Production features do not use simulated services or seeded customer data. Automated tests create isolated temporary businesses and deterministic browser camera/microphone inputs.

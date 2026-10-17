@@ -23,7 +23,9 @@ module OmniGrow
     end
     def omnigrow_active_membership(account_id)
       member = AccountUser.includes(:account).find_by(account_id: account_id, user_id: current_user.id)
-      member if member&.account&.active?
+      return unless member&.account&.active?
+      business = OmniGrow::Business.find_by(account_id: account_id) if OmniGrow::Business.table_exists?
+      member if !business || business.subscription_available?
     end
     def omnigrow_transmit(payload)
       return unless payload.is_a?(Hash) && payload['data'].is_a?(Hash)

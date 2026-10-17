@@ -17,6 +17,7 @@
     "test:runtime": "node tests/runtime-regressions.mjs",
     "test:e2e": "playwright test",
     "test:business": "node tests/business-run.mjs",
+    "test:subscriptions": "node tests/subscriptions.mjs",
     "meetings:renew-certificate": "node scripts/renew-meeting-certificate.mjs",
     "setup": "node scripts/setup.mjs",
     "migrate": "node scripts/migrate.mjs",

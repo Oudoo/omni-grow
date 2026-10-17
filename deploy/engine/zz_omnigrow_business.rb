@@ -4,6 +4,7 @@ Rails.application.config.filter_parameters += %i[token password client_secret in
 Rails.application.config.to_prepare do
   require '/app/omnigrow/models'
   require '/app/omnigrow/meetings'
+  require '/app/omnigrow/subscriptions'
   require '/app/omnigrow/lifecycle'
   require '/app/omnigrow/realtime'
   require '/app/omnigrow/business_controller'
@@ -19,7 +20,9 @@ Rails.application.config.to_prepare do
         return if is_a?(OmniGrow::BusinessController)
         # Employee lifecycle must use the invitation-aware endpoints; native
         # membership writes would bypass seat limits and meeting revocation.
-        if controller_path == 'api/v1/accounts/agents' && !request.get? && !request.head?
+        if !business.subscription_available?
+          render json: { error: 'This business subscription is inactive. Contact your service provider to renew it.' }, status: :payment_required
+        elsif controller_path == 'api/v1/accounts/agents' && !request.get? && !request.head?
           render json: { error: 'Manage employees through Business settings.' }, status: :forbidden
         elsif !business.inbox?
           render json: { error: 'The customer inbox is not included in this business package.' }, status: :forbidden
@@ -40,6 +43,7 @@ Rails.application.routes.prepend do
     patch 'members/:id', action: :update_member
     delete 'members/:id', action: :remove_member
     get 'audit', action: :audit
+    get 'subscription', action: :subscription
     get 'rooms', action: :rooms
     post 'rooms', action: :create_room
     get 'rooms/:id', action: :show_room
@@ -62,6 +66,8 @@ Rails.application.routes.prepend do
     post 'businesses', action: :create
     patch 'businesses/:id', action: :update
     post 'businesses/:id/invitations', action: :invite
+    get 'businesses/:id/subscription', action: :subscription
+    post 'businesses/:id/subscription', action: :change_subscription
   end
   post '/api/v1/omnigrow/invitations/preview', to: 'omni_grow/invitations#preview'
   post '/api/v1/omnigrow/invitations/accept', to: 'omni_grow/invitations#accept'

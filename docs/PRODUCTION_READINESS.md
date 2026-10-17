@@ -7,7 +7,8 @@ Status after the business communications release on this branch. The engine is C
 - Independent business accounts, company branding, employee invitations and roles, operator-managed packages and seat/storage allowances.
 - Persistent public/private company channels, direct messages, replies, history/search, drafts and protected documents. Downloads and realtime deliveries recheck current tenant/channel permissions.
 - Real microphone, camera and screen sharing through LiveKit. Membership removal, suspension and package removal end affected meetings; short-lived admission tokens cannot recreate deleted rooms.
-- Standalone Team and combined Business packages are enforced by the backend as well as the UI. Provisioning is manual; automatic subscription billing is not included.
+- Standalone Team and combined Business packages are enforced by the backend as well as the UI. Optional monthly/yearly or open-ended subscriptions include manual payment references, prices, grace periods, renewal and access expiry. Automatic card collection and tax invoices are not included.
+- Subscription expiry is checked on employee requests and event delivery. Already-connected meetings are ended by a once-per-minute critical-queue job; worker/SFU outages can delay cleanup. Stored data and inbound customer messaging remain available for later renewal.
 - Linux Compose configuration provides HTTPS signaling and TURN with TLS routing on port 443. Public certificate issuance, relay-only calls across different physical networks, and production call capacity still need deployment acceptance.
 
 ## What the hardening release changed

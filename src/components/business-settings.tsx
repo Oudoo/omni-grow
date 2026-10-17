@@ -6,6 +6,7 @@ import { request } from '@/lib/client';
 import { businessApi, fileSize, invitationLink } from '@/lib/business-client';
 import type { BusinessContext, Employee, Invitation } from '@/lib/business-types';
 import { Empty, ErrorNotice, Loading, Modal, PanelHeading } from './ui';
+import { SubscriptionSummary } from './business-subscription';
 
 export function InvitationResult({ token, email, close }: { token: string; email: string; close: () => void }) {
   const [copied, setCopied] = useState(false);
@@ -16,7 +17,7 @@ export function InvitationResult({ token, email, close }: { token: string; email
 
 export function BusinessSettings({ context, refresh }: { context: BusinessContext; refresh: () => void }) {
   const [tab, setTab] = useState('company');
-  return <><PanelHeading eyebrow="YOUR BUSINESS" title={context.business.name} description="Your identity, your people, your workspace." /><div className="tabs">{['company', 'people', ...(context.administrator ? ['activity'] : [])].map(value => <button key={value} className={tab === value ? 'active' : ''} onClick={() => setTab(value)}>{value === 'company' ? 'Company profile' : value === 'people' ? 'Employees' : 'Activity log'}</button>)}</div>{tab === 'company' && <CompanyProfile context={context} refresh={refresh} />}{tab === 'people' && <Employees administrator={context.administrator} refresh={refresh} />}{tab === 'activity' && <BusinessActivity />}</>;
+  return <><PanelHeading eyebrow="YOUR BUSINESS" title={context.business.name} description="Your identity, your people, your workspace." /><div className="tabs">{['company', 'people', 'subscription', ...(context.administrator ? ['activity'] : [])].map(value => <button key={value} className={tab === value ? 'active' : ''} onClick={() => setTab(value)}>{value === 'company' ? 'Company profile' : value === 'people' ? 'Employees' : value === 'subscription' ? 'Subscription' : 'Activity log'}</button>)}</div>{tab === 'company' && <CompanyProfile context={context} refresh={refresh} />}{tab === 'people' && <Employees administrator={context.administrator} refresh={refresh} />}{tab === 'activity' && <BusinessActivity />}{tab === 'subscription' && <article className="data-panel"><h2>Your subscription</h2><SubscriptionSummary subscription={context.business.subscription} /></article>}</>;
 }
 
 function CompanyProfile({ context, refresh }: { context: BusinessContext; refresh: () => void }) {

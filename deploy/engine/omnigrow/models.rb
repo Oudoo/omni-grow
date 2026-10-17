@@ -22,10 +22,11 @@ module OmniGrow
     def inbox? = %w[inbox business].include?(plan)
     def used_storage = Document.where(account_id: account_id).sum(:byte_size)
     def used_seats = account.account_users.count + Invitation.pending.where(account_id: account_id).count
-    def payload
+    def payload(financial: false)
       { account_id: account_id, name: account.name, description: description, website: website, accent_color: accent_color,
         plan: plan, team_enabled: team?, inbox_enabled: inbox?, seat_limit: seat_limit, used_seats: used_seats,
-        storage_limit_bytes: storage_limit_bytes, storage_used_bytes: used_storage, has_logo: logo.attached?, logo_version: logo.attached? ? Digest::SHA256.hexdigest(logo.blob.checksum).first(16) : nil, status: account.status }
+        storage_limit_bytes: storage_limit_bytes, storage_used_bytes: used_storage, has_logo: logo.attached?, logo_version: logo.attached? ? Digest::SHA256.hexdigest(logo.blob.checksum).first(16) : nil, status: account.status,
+        access_enabled: access_enabled?, subscription: subscription_payload(financial: financial) }
     end
   end
   class Invitation < ApplicationRecord

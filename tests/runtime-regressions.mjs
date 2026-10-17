@@ -27,7 +27,7 @@ const mock = createServer(async (req, res) => {
     const json = (value, status = 200) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(value)); };
     if (path === '/health') return json({ status: 'ok' });
     if (path === '/api/v1/profile') return json(profile);
-    if (path === '/api/v1/accounts/1/business/context') return json({ business: { account_id: 1, name: 'Review workspace', plan: 'inbox', inbox_enabled: true, team_enabled: false, accent_color: '#35614d', has_logo: false }, administrator: true, operator: false, meetings_configured: false });
+    if (path === '/api/v1/accounts/1/business/context') return json({ business: { account_id: 1, name: 'Review workspace', plan: 'inbox', inbox_enabled: true, team_enabled: false, access_enabled: true, subscription: { interval: 'unlimited', status: 'unlimited', paid_through: null, starts_at: null, access_until: null, grace_days: 0, version: 0, collection: 'manual' }, accent_color: '#35614d', has_logo: false }, administrator: true, operator: false, meetings_configured: false });
     if (path === '/api/v1/accounts/1/inboxes') return json({ payload: [{ id: 1, name: 'Review API', channel_type: 'Channel::Api' }] });
     if (path === '/api/v1/accounts/1/conversations') return json({ data: { payload: [conversation], meta: { all_count: 1 } } });
     if (path === '/api/v1/accounts/1/conversations/1') return json(conversation);

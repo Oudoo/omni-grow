@@ -10,7 +10,7 @@ OmniGrow includes native internal channels, direct messages, shared documents an
 | Team communications | No | Yes | Yes |
 | Business | Yes | Yes | Yes |
 
-The installation owner normally has the SuperAdmin role. Sign in and open **Businesses → Create business**. Enter the company name, first administrator, package, employee-seat allowance and document-storage allowance. Creation is atomic and retries use the same creation ID. Only the installation operator can assign packages, quotas or suspension; a business administrator cannot change their package or create other tenants. This is manual provisioning for your sales process; payment collection and recurring billing require a separate billing integration.
+The installation owner normally has the SuperAdmin role. Sign in and open **Businesses → Create business**. Enter the company name, first administrator, package, employee-seat allowance and document-storage allowance. Creation is atomic and retries use the same creation ID. Only the installation operator can assign packages, quotas, subscription terms or suspension; a business administrator cannot change their package or create other tenants.
 
 Copy the generated administrator invitation and deliver it privately to that person. Links expire after seven days, are single-use, and reserve a seat. Only a SHA-256 digest is stored. An invitation is carried in the URL fragment, which is not sent in HTTP request URLs. If the creation response was lost, the existing business is returned; use **Invite administrator** to issue a replacement link. The previous unused link is revoked.
 
@@ -21,8 +21,25 @@ Inside each company, **Business settings** provides:
 - Company name, description, HTTPS website, brand color and a PNG/JPEG/WebP logo, up to 2 MiB.
 - Employee invitations, pending-invitation revocation, employee/admin roles and removal.
 - Seat/storage usage and a recent audit trail. At least one administrator must remain.
+- A read-only subscription summary for company administrators, including the agreed price, paid-through date and grace period.
 
 The initial installation starts with Business capabilities for local testing. Existing package assignments survive repeated setup. Each newly provisioned customer gets exactly the package selected by the operator.
+
+## Hosted leases and subscriptions
+
+Your VPS can serve several businesses with independent packages and payment terms. Open **Businesses → Manage subscription** for the business. Existing and new businesses start with open-ended access, so paid terms are optional and upgrades do not unexpectedly expire current customers.
+
+1. Choose **Activate or replace a paid term**, monthly or yearly, the start date, agreed price/currency, and 0–30 grace days. Enter a unique payment or invoice reference. A future start date restricts access until that date; replacing a term replaces its remaining paid time.
+2. After receiving payment, choose **Record payment and renew one period**. Active, scheduled and grace-period subscriptions extend their original calendar term. Expired or cancelled subscriptions start a fresh period at renewal time. A January 31 monthly anchor renews through February's last day and then March 31; yearly leap-day terms preserve the original anchor.
+3. Choose **End access now** to cancel access, or **Grant open-ended access** for a perpetual/contract arrangement. Each change requires a reference and appears in the operator's history. These actions do not issue refunds.
+
+Prices are stored in integer minor units. Supported currencies are USD, EUR, GBP, EGP, AED, SAR, INR, CAD, AUD, JPY, KWD, BHD and OMR, with their correct zero/two/three decimal places. Employees do not receive financial terms; business administrators can read their price but cannot edit it. Only the operator sees payment references and change history. This is manual payment administration: the app does not collect cards, generate tax invoices, email renewal notices or automatically debit customers. Those require a selected payment provider and accounting/messaging integration.
+
+Each operation has an idempotency ID and expected version. Concurrent retries cannot add an extra period, reused payment references are rejected case-insensitively within that business, and an old edit cannot overwrite newer terms. Review the current history before entering a new reference after an uncertain response.
+
+At expiry, employee requests, private document downloads and live-event delivery are denied by the backend. Employees can still sign in and read their activation status. Stored messages/documents remain and become accessible after renewal; renewal does not lift a separate account suspension. External customer widgets and inbound provider callbacks continue accepting messages; this subscription controls employee service access, not provider accounts or data deletion. Operators can still manage subscriptions if their own business term is inactive.
+
+Active meetings are ended by the `omnigrow_subscription_expiry` job, scheduled once per minute on Sidekiq's `critical` queue. Request checks use the clock directly; established media needs the worker and SFU to be available for cleanup. An admission token already issued can remain valid for up to 60 seconds. Monitor the queue and cleanup errors: worker/SFU outages can delay disconnection. Explicit cancellation ends existing meetings before confirming success.
 
 ## Daily use
 
@@ -45,6 +62,8 @@ Admission is checked against current tenant, plan, membership and channel visibi
 Run `npm ci` and `npm run local`, then open `http://localhost:3000`. Retrieve the initial credentials privately with `npm run local:credentials`. Use two different browser profiles for two employees. Create two businesses and check branding, invitations, private/public channels, cross-business file denial, file download bytes, chat after reload, call controls, screen sharing, removal and suspension. Cameras and microphones require localhost on the same computer or HTTPS. A plain HTTP Wi-Fi IP is insufficient for browser media permissions; use the HTTPS VPS configuration for other devices.
 
 `npm run test:business` runs real API, browser/media, lifecycle and TLS-router checks against the default local installation and cleans up its isolated records. A running frontend, engine, LiveKit, Docker, OpenSSL and Playwright Chromium are required. The suite honors native sign-in rate limits and can wait up to five minutes. The browser uses deterministic test cameras/microphones through actual WebRTC/SFU connections. TLS-router checks use a local test certificate and prove routing/client-IP behavior, not public certificate issuance or internet TURN connectivity. Results in `.local/business-*-results.json` contain no credentials; `.local/business-test-state.json` is private and is removed by the complete suite.
+
+`npm run test:subscriptions` uses the same real services to verify operator/customer permissions, calendar boundaries, payment retry deduplication, scheduled access, worker-driven meeting expiry, retained documents after renewal and the operator/customer browser flow. Its isolated businesses are removed afterward; the credential-free result is `.local/subscription-results.json`.
 
 ## Storage, upgrades and boundaries
 

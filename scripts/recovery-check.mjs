@@ -38,7 +38,7 @@ try {
   assert(Number.isSafeInteger(blob.id) && blob.id > 0 && /^[a-zA-Z0-9]+$/.test(blob.key) && blob.path.startsWith('/app/storage/') && !blob.path.includes('..'));
   await compose(['exec', '-T', 'redis', 'sh', '-c', 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli SET "$1" "$2"', '--', redisKey, identity], { capture: true });
   const expectedCounts = await query(compose, countsSQL);
-  const businessTables = ['og_businesses', 'og_invitations', 'og_rooms', 'og_room_members', 'og_messages', 'og_documents', 'og_reads', 'og_meetings', 'og_audits', 'og_schema_migrations'];
+  const businessTables = ['og_businesses', 'og_invitations', 'og_rooms', 'og_room_members', 'og_messages', 'og_documents', 'og_reads', 'og_meetings', 'og_audits', 'og_schema_migrations', 'og_subscription_changes'];
   const businessHashes = new Map();
   for (const table of businessTables) {
     // Table names are a fixed list, never CLI/user input. Compare all stored
