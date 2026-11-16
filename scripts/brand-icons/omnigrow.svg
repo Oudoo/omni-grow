@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect id="plate" width="512" height="512" rx="112" fill="#167b62"/>
+  <g id="glyph">
+    <text x="238" y="328" text-anchor="middle" font-family="Inter, 'Segoe UI', Arial, sans-serif" font-size="250" font-weight="600" letter-spacing="-18" fill="#fff">og</text>
+    <path d="M362 116h56v56m0-56-64 64" fill="none" stroke="#c1f4db" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

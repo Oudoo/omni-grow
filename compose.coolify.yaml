@@ -1,0 +1,118 @@
+# Self-contained deployment for Coolify (Docker Compose build pack) or any
+# Docker host behind an HTTPS reverse proxy. See docs/COOLIFY.md.
+#
+# Required in the panel before the first deploy:
+#   OG_OWNER_EMAIL, OG_OWNER_PASSWORD   first workspace owner (used once)
+# Public addresses (defaults are the Abo Teeg Pharmacy deployment):
+#   OG_APP_URL        the staff app / installable PWA   -> service "app", port 3000
+#   OG_MESSAGING_URL  the messaging engine and widget   -> service "rails", port 3000
+# All other secrets are generated on first start into the og-secrets volume.
+x-engine-env: &engine-env
+  RAILS_ENV: production
+  NODE_ENV: production
+  INSTALLATION_ENV: docker
+  INSTALLATION_NAME: ${OG_WORKSPACE_NAME:-Abo Teeg Pharmacy}
+  FRONTEND_URL: ${OG_MESSAGING_URL:-https://chat.aboteegpharmacy.com}
+  FORCE_SSL: 'false'
+  ENABLE_ACCOUNT_SIGNUP: 'false'
+  POSTGRES_HOST: postgres
+  POSTGRES_DATABASE: chatwoot
+  POSTGRES_USERNAME: postgres
+  REDIS_URL: redis://redis:6379
+  ACTIVE_STORAGE_SERVICE: local
+  RAILS_LOG_TO_STDOUT: 'true'
+  RAILS_MAX_THREADS: '5'
+  SIDEKIQ_CONCURRENCY: '5'
+
+services:
+  postgres:
+    build: { context: ., dockerfile: deploy/stack.Dockerfile, target: postgres }
+    environment:
+      POSTGRES_DB: chatwoot
+      POSTGRES_USER: postgres
+    volumes:
+      - og-secrets:/run/og
+      - postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres -d chatwoot]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    build: { context: ., dockerfile: deploy/stack.Dockerfile, target: redis }
+    volumes:
+      - og-secrets:/run/og:ro
+      - redis:/data
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, sh, /og/redis-health.sh]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  rails:
+    build: { context: ., dockerfile: deploy/stack.Dockerfile, target: engine }
+    entrypoint: [/bin/sh, /og/engine-start.sh]
+    environment:
+      <<: *engine-env
+      OG_OWNER_EMAIL: ${OG_OWNER_EMAIL:-}
+      OG_OWNER_PASSWORD: ${OG_OWNER_PASSWORD:-}
+      OG_OWNER_NAME: ${OG_OWNER_NAME:-Pharmacy owner}
+      OG_WORKSPACE_NAME: ${OG_WORKSPACE_NAME:-Abo Teeg Pharmacy}
+    volumes:
+      - og-secrets:/run/og
+      - storage:/app/storage
+    expose: ['3000']
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    stop_grace_period: 45s
+    healthcheck:
+      test: [CMD-SHELL, "ruby -rnet/http -e 'exit(Net::HTTP.new(\"127.0.0.1\",3000,nil).get(\"/api\").code == \"200\" ? 0 : 1)'"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 240s
+
+  worker:
+    build: { context: ., dockerfile: deploy/stack.Dockerfile, target: engine }
+    entrypoint: [/bin/sh, /og/worker-start.sh]
+    environment: *engine-env
+    volumes:
+      - og-secrets:/run/og:ro
+      - storage:/app/storage
+    depends_on:
+      rails: { condition: service_healthy }
+    restart: unless-stopped
+    stop_grace_period: 45s
+
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_ENGINE_URL: ${OG_MESSAGING_URL:-https://chat.aboteegpharmacy.com}
+        NEXT_PUBLIC_BRAND: ${OG_BRAND:-aboteeg}
+    command: [node, --env-file-if-exists=/run/og/app.env, server.js]
+    environment:
+      APP_URL: ${OG_APP_URL:-https://app.aboteegpharmacy.com}
+      ENGINE_URL: http://rails:3000
+      NEXT_PUBLIC_ENGINE_URL: ${OG_MESSAGING_URL:-https://chat.aboteegpharmacy.com}
+      # The proxy in front of this stack must overwrite X-Real-IP before this is enabled.
+      TRUST_PROXY: 'false'
+    volumes:
+      - og-secrets:/run/og:ro
+    expose: ['3000']
+    depends_on:
+      rails: { condition: service_healthy }
+    restart: unless-stopped
+
+volumes:
+  og-secrets:
+  postgres:
+  redis:
+  storage:

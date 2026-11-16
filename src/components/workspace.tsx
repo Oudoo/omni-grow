@@ -12,7 +12,9 @@ import { Contacts } from './contacts';
 import { Reports } from './reports';
 import { AutomationView } from './automation';
 import { SettingsView } from './settings';
-import { ErrorNotice, Modal } from './ui';
+import { BrandLogo, ErrorNotice, Modal } from './ui';
+import { InstallNavItem } from './pwa';
+import { brand } from '@/lib/brand';
 
 const navigation = [
   { id: 'inbox', label: 'Shared inbox', icon: InboxIcon },
@@ -36,11 +38,11 @@ export function Workspace({ section, initialProfile }: { section: string; initia
   async function logout() { if (sessionBusy) return; setSessionBusy(true); try { await request('/api/auth/logout', { method: 'POST', body: '{}' }); clearConversationDrafts(); announceSessionChange('logout'); window.location.assign('/login'); } catch (e) { setActionError(e as Error); setSessionBusy(false); } }
   async function switchAccount(value: string) { if (sessionBusy) return; setSessionBusy(true); try { await request('/api/auth/account', { method: 'POST', body: JSON.stringify({ accountId: Number(value) }) }); announceSessionChange('account-switch'); window.location.assign('/inbox'); } catch (e) { setActionError(e as Error); setSessionBusy(false); } }
   return <div className="workspace-shell">
-    <aside className="sidebar"><Link href="/inbox" className="brand"><span className="brand-mark">og<span>↗</span></span><strong>OmniGrow<span className="brand-dot">.</span></strong></Link>
+    <aside className="sidebar"><Link href="/inbox" className="brand"><BrandLogo /></Link>
       <div className="workspace-picker"><span className="workspace-avatar">{initials(account.name)}</span><div><span className="small muted">WORKSPACE</span>{profile.accounts.length > 1 ? <select aria-label="Workspace" disabled={sessionBusy} value={account.id} onChange={e => switchAccount(e.target.value)}>{profile.accounts.map(a => <option value={a.id} key={a.id}>{a.name}</option>)}</select> : <strong>{account.name}</strong>}</div><ChevronDown size={14} /></div>
       <div className="nav-label">YOUR WORKSPACE</div><nav>{navigation.map(({ id, label, icon: Icon }) => <Link href={`/${id}`} aria-label={label} key={id} className={`nav-item ${section === id ? 'active' : ''}`} aria-current={section === id ? 'page' : undefined}><Icon size={19} /><span>{label}</span>{section === id && <span className="nav-active-dot" />}</Link>)}</nav>
       <div className="sidebar-note"><span className="note-icon"><Sparkles size={18} /></span><strong>Connected feels better.</strong><p>Bring your next channel into the conversation.</p><Link href="/channels">Manage channels<ChevronRight size={15} /></Link></div>
-      <div className="sidebar-bottom"><Link className={`nav-item ${section === 'settings' ? 'active' : ''}`} href="/settings" aria-label="Workspace settings"><Settings2 size={19} /><span>Workspace settings</span></Link><a className="nav-item" href="https://www.chatwoot.com/docs/product/" aria-label="Messaging guide" target="_blank" rel="noreferrer"><CircleHelp size={19} /><span>Messaging guide</span></a><div className="user-card"><span className="avatar small-avatar">{initials(profile.name)}</span><div><strong>{profile.name}</strong><span>{account.role === 'administrator' ? 'Workspace admin' : 'Support agent'}</span></div><button className="icon-button" onClick={logout} disabled={sessionBusy} aria-label="Sign out"><LogOut size={17} /></button></div></div>
+      <div className="sidebar-bottom"><InstallNavItem /><Link className={`nav-item ${section === 'settings' ? 'active' : ''}`} href="/settings" aria-label="Workspace settings"><Settings2 size={19} /><span>Workspace settings</span></Link><a className="nav-item" href="https://www.chatwoot.com/docs/product/" aria-label="Messaging guide" target="_blank" rel="noreferrer"><CircleHelp size={19} /><span>Messaging guide</span></a><div className="user-card"><span className="avatar small-avatar">{initials(profile.name)}</span><div><strong>{profile.name}</strong><span>{account.role === 'administrator' ? 'Workspace admin' : 'Support agent'}</span></div><button className="icon-button" onClick={logout} disabled={sessionBusy} aria-label="Sign out"><LogOut size={17} /></button></div></div>
     </aside>
     <main className="workspace-main"><header className="topbar"><div className="breadcrumb">Workspace<ChevronRight size={14} /><strong>{navigation.find(n => n.id === section)?.label || 'Settings'}</strong></div><div className="topbar-right"><span className="workspace-badge"><span />{account.name}</span><span className="topbar-symbol"><Command size={15} /> OG</span></div><button className="icon-button mobile-account-toggle" aria-label="Account menu" onClick={() => setAccountMenu(true)}><span className="avatar small-avatar">{initials(profile.name)}</span></button></header>
       {actionError && <ErrorNotice error={actionError} />}
@@ -53,6 +55,6 @@ export function Workspace({ section, initialProfile }: { section: string; initia
         {section === 'settings' && <SettingsView profile={profile} />}
       </div>
     </main>
-    {accountMenu && <Modal title="Your account" busy={sessionBusy} close={() => setAccountMenu(false)}><div className="form-stack"><strong>{profile.name}</strong><p className="muted">{profile.email}</p><label>Switch workspace<select aria-label="Switch workspace" disabled={sessionBusy} value={account.id} onChange={event => switchAccount(event.target.value)}>{profile.accounts.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button className="button secondary" disabled={sessionBusy} onClick={logout}><LogOut size={16} />Sign out of OmniGrow</button></div><ErrorNotice error={actionError} /></Modal>}
+    {accountMenu && <Modal title="Your account" busy={sessionBusy} close={() => setAccountMenu(false)}><div className="form-stack"><strong>{profile.name}</strong><p className="muted">{profile.email}</p><label>Switch workspace<select aria-label="Switch workspace" disabled={sessionBusy} value={account.id} onChange={event => switchAccount(event.target.value)}>{profile.accounts.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button className="button secondary" disabled={sessionBusy} onClick={logout}><LogOut size={16} />Sign out of {brand.shortName}</button></div><ErrorNotice error={actionError} /></Modal>}
   </div>;
 }

@@ -35,3 +35,12 @@ input::placeholder,textarea::placeholder{color:#687b6d}
 
 .sidebar{height:100dvh;overflow-y:auto}.sidebar>*{flex-shrink:0}
 @media(max-height:900px){.sidebar-note{display:none}}
+
+/* Brand and installable app */
+.brand-words{display:flex;flex-direction:column;min-width:0;line-height:1.05}.brand-words small{font-size:9px;font-weight:650;letter-spacing:2.6px;text-transform:uppercase;color:var(--green);margin-top:4px}.login-story .brand-words small{color:#b7ce93}
+.brand-mark-icon{padding:0;letter-spacing:0;color:#fff}.brand-mark-icon svg{width:28px;height:28px}.brand-mark-cross{fill:var(--green)}.login-story .brand-mark-icon{color:#173e33}.login-story .brand-mark-cross{fill:#c3d8a1}
+.install-nav{width:100%;border:0;background:transparent;text-align:left;font:inherit}
+.install-card{position:relative;display:flex;align-items:flex-start;gap:13px;margin-top:22px;padding:15px 40px 15px 15px;border:1px solid #dfece2;background:#f1f7f2;border-radius:11px;text-align:left}.install-card img{border-radius:10px;flex-shrink:0}.install-card>div{flex:1;min-width:0}.install-card strong{display:block;font-size:13px;color:var(--ink)}.install-card p{font-size:12px;line-height:1.6;margin-top:4px;color:var(--muted)}.install-card .button{align-self:center;flex-shrink:0}.install-dismiss{position:absolute;top:8px;right:8px}
+.install-steps{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--muted)}.install-steps li{display:flex;align-items:center;gap:8px}.install-steps svg{color:var(--green)}.modal .install-steps{font-size:14px;gap:14px}
+@media(max-width:1050px){.sidebar .brand-words{display:none}}
+@media(max-width:760px){.install-card{flex-wrap:wrap}.install-card .button{width:100%}}
