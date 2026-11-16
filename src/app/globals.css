@@ -44,3 +44,4 @@ input::placeholder,textarea::placeholder{color:#687b6d}
 .install-steps{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--muted)}.install-steps li{display:flex;align-items:center;gap:8px}.install-steps svg{color:var(--green)}.modal .install-steps{font-size:14px;gap:14px}
 @media(max-width:1050px){.sidebar .brand-words{display:none}}
 @media(max-width:760px){.install-card{flex-wrap:wrap}.install-card .button{width:100%}}
+.login-mobile-brand{display:none}@media(max-width:760px){.login-mobile-brand{display:flex;margin-bottom:34px}}
