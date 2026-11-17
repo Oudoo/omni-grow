@@ -37,7 +37,13 @@ npm run test:load
 
 Browser tests create isolated accounts against the running database, exercise actual channel and UI flows, and remove their records afterward. They honor native login throttles, so a repeated run can wait up to five minutes. Test credentials, session files, logs, and reports remain ignored. Load testing creates 2,000 real WebSocket subscriptions in an isolated account and records measured latency; it never targets a remote service.
 
-See [validation](docs/VALIDATION.md), [channel configuration](docs/CHANNELS.md), [deployment and recovery](docs/DEPLOYMENT.md), and [architecture and scope](docs/ARCHITECTURE.md).
+See [validation](docs/VALIDATION.md), [channel configuration](docs/CHANNELS.md), [deployment and recovery](docs/DEPLOYMENT.md), [Coolify deployment](docs/COOLIFY.md), and [architecture and scope](docs/ARCHITECTURE.md).
+
+## Installable app and branding
+
+The workspace is a Progressive Web App: production builds serve a web app manifest and a service worker, so staff can install it on Android, iOS, Windows and macOS. The worker caches only hashed build assets, icons and an offline screen; conversations and API responses always come from the network. `NEXT_PUBLIC_BRAND` (a Docker build argument) selects the brand at build time: `omnigrow` (default) or `aboteeg` for Abo Teeg Pharmacy. Brand names live in `src/lib/brand.ts`; icon sources are in `scripts/brand-icons/` and `node scripts/brand-icons/render.mjs` regenerates the PNG set.
+
+`compose.coolify.yaml` deploys the whole stack as one Coolify resource with secrets generated on the server; follow [docs/COOLIFY.md](docs/COOLIFY.md).
 
 ## Reuse this cloud environment
 

@@ -4,6 +4,7 @@ import { getIronSession } from 'iron-session';
 import { NextRequest, NextResponse } from 'next/server';
 import { sameOrigin } from './policy';
 import type { Profile } from './types';
+import { brand } from './brand';
 
 export interface SessionData { pendingMfa?: { token: string; expiresAt: number }; auth?: { 'access-token': string; client: string; uid: string }; profile?: Profile; accountId?: number; issuedAt?: number }
 export function appUrl() { return process.env.APP_URL || 'http://localhost:3000'; }
@@ -18,11 +19,11 @@ export async function session() {
 }
 export class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 export function checkOrigin(request: NextRequest) {
-  if (!sameOrigin(request.headers.get('origin'), appUrl())) throw new ApiError(403, 'This action must come from your OmniGrow workspace.');
+  if (!sameOrigin(request.headers.get('origin'), appUrl())) throw new ApiError(403, `This action must come from your ${brand.shortName} workspace.`);
 }
 export async function requireSession() {
   const state = await session();
-  if (!state.auth || !state.profile || !state.accountId || !state.issuedAt || Date.now() - state.issuedAt > 8 * 60 * 60 * 1000) throw new ApiError(401, 'Please sign in to OmniGrow.');
+  if (!state.auth || !state.profile || !state.accountId || !state.issuedAt || Date.now() - state.issuedAt > 8 * 60 * 60 * 1000) throw new ApiError(401, `Please sign in to ${brand.shortName}.`);
   return state as typeof state & Required<SessionData>;
 }
 export async function engineFetch(path: string, auth?: SessionData['auth'], init: RequestInit = {}) {

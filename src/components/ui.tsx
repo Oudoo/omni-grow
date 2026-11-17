@@ -1,6 +1,14 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import { LoaderCircle, X, Inbox } from 'lucide-react';
+import { brand } from '@/lib/brand';
+/** Brand mark plus wordmark; the default brand keeps the original og mark. */
+export function BrandLogo() {
+  return <>{brand.id === 'omnigrow'
+    ? <span className="brand-mark">og<span>↗</span></span>
+    : <span className="brand-mark brand-mark-icon"><svg viewBox="0 0 512 512" aria-hidden="true"><path d="M256 104c-88.4 0-160 62.7-160 140 0 43.6 22.8 82.5 58.5 108.2L142 412l66.6-35.1c15 4 30.9 6.1 47.4 6.1 88.4 0 160-62.7 160-140s-71.6-139-160-139z" fill="currentColor" /><rect x="231" y="170" width="50" height="148" rx="12" className="brand-mark-cross" /><rect x="182" y="219" width="148" height="50" rx="12" className="brand-mark-cross" /></svg></span>}
+    <span className="brand-words"><strong>{brand.wordmark}<span className="brand-dot">.</span></strong>{brand.subtitle && <small>{brand.subtitle}</small>}</span></>;
+}
 export function Loading({ label = 'Loading your workspace…' }: { label?: string }) { return <div className="loading"><LoaderCircle size={22} className="spin" /><span>{label}</span></div>; }
 export function Empty({ title, text, action }: { title: string; text: string; action?: React.ReactNode }) {
   return <div className="empty-state"><span className="empty-icon"><Inbox size={30} /></span><h3>{title}</h3><p>{text}</p>{action}</div>;

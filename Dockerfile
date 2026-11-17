@@ -14,7 +14,9 @@ COPY . .
 ARG NEXT_PUBLIC_ENGINE_URL
 ARG NEXT_PUBLIC_FB_APP_ID
 ARG NEXT_PUBLIC_FB_API_VERSION=v23.0
+ARG NEXT_PUBLIC_BRAND=omnigrow
 ENV NEXT_PUBLIC_ENGINE_URL=$NEXT_PUBLIC_ENGINE_URL \
+    NEXT_PUBLIC_BRAND=$NEXT_PUBLIC_BRAND \
     NEXT_PUBLIC_FB_APP_ID=$NEXT_PUBLIC_FB_APP_ID \
     NEXT_PUBLIC_FB_API_VERSION=$NEXT_PUBLIC_FB_API_VERSION \
     NEXT_TELEMETRY_DISABLED=1
@@ -25,6 +27,7 @@ WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
+COPY --from=build --chown=node:node /app/public ./public
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=8s --start-period=30s \
