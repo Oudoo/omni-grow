@@ -12,7 +12,7 @@ x-engine-env: &engine-env
   NODE_ENV: production
   INSTALLATION_ENV: docker
   INSTALLATION_NAME: ${OG_WORKSPACE_NAME:-Abo Teeg Pharmacy}
-  FRONTEND_URL: ${OG_MESSAGING_URL:-https://chat.aboteegpharmacy.com}
+  FRONTEND_URL: ${OG_MESSAGING_URL:-https://messages.og.aboteegpharmacy.com}
   FORCE_SSL: 'false'
   ENABLE_ACCOUNT_SIGNUP: 'false'
   POSTGRES_HOST: postgres
@@ -95,13 +95,13 @@ services:
     build:
       context: .
       args:
-        NEXT_PUBLIC_ENGINE_URL: ${OG_MESSAGING_URL:-https://chat.aboteegpharmacy.com}
+        NEXT_PUBLIC_ENGINE_URL: ${OG_MESSAGING_URL:-https://messages.og.aboteegpharmacy.com}
         NEXT_PUBLIC_BRAND: ${OG_BRAND:-aboteeg}
     command: [node, --env-file-if-exists=/run/og/app.env, server.js]
     environment:
-      APP_URL: ${OG_APP_URL:-https://app.aboteegpharmacy.com}
+      APP_URL: ${OG_APP_URL:-https://og.aboteegpharmacy.com}
       ENGINE_URL: http://rails:3000
-      NEXT_PUBLIC_ENGINE_URL: ${OG_MESSAGING_URL:-https://chat.aboteegpharmacy.com}
+      NEXT_PUBLIC_ENGINE_URL: ${OG_MESSAGING_URL:-https://messages.og.aboteegpharmacy.com}
       # The proxy in front of this stack must overwrite X-Real-IP before this is enabled.
       TRUST_PROXY: 'false'
     volumes:

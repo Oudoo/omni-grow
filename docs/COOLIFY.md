@@ -9,13 +9,14 @@ The defaults deploy **Abo Teeg Pharmacy**:
 
 | Service | Address | What it is |
 | --- | --- | --- |
-| `app` | `https://app.aboteegpharmacy.com` | Staff inbox, installable as an app (PWA) |
-| `rails` | `https://chat.aboteegpharmacy.com` | Messaging engine, website widget, provider webhooks |
+| `app` | `https://og.aboteegpharmacy.com` | Staff inbox, installable as an app (PWA) |
+| `rails` | `https://messages.og.aboteegpharmacy.com` | Messaging engine, website widget, provider webhooks |
 
 ## 1. DNS
 
 Point both names at the server's public IPv4 address with `A` records
-(`app` and `chat` for `aboteegpharmacy.com`). Wait until they resolve before
+(`og` and `messages.og` for `aboteegpharmacy.com`, leaving the bare domain free
+for the main website). Wait until they resolve before
 deploying, otherwise certificate issuance fails and must be retried.
 
 ## 2. Create the resource
@@ -25,8 +26,8 @@ deploying, otherwise certificate issuance fails and must be retried.
 3. **Build Pack:** `Docker Compose`. **Base Directory:** `/`.
    **Docker Compose Location:** `/compose.coolify.yaml`. Continue.
 4. Under **Domains**, set:
-   - `app` → `https://app.aboteegpharmacy.com:3000`
-   - `rails` → `https://chat.aboteegpharmacy.com:3000`
+   - `app` → `https://og.aboteegpharmacy.com:3000`
+   - `rails` → `https://messages.og.aboteegpharmacy.com:3000`
 
    The `:3000` tells the proxy which container port to use; visitors still use
    the plain `https://` address.
@@ -49,8 +50,8 @@ does not reset it.
 
 ## 3. Check it
 
-- `https://app.aboteegpharmacy.com/api/health` returns `{"status":"ok"}`.
-- Sign in at `https://app.aboteegpharmacy.com` with the owner credentials.
+- `https://og.aboteegpharmacy.com/api/health` returns `{"status":"ok"}`.
+- Sign in at `https://og.aboteegpharmacy.com` with the owner credentials.
 - **Channels → Connect website**, then **Install widget → Test real widget**
   sends a real customer message to the shared inbox.
 
